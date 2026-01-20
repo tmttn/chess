@@ -24,8 +24,8 @@
       </div>
 
       <div class="side-panel">
-        <MoveHistory />
         <DebugPanel />
+        <MoveHistory />
       </div>
     </div>
   </div>

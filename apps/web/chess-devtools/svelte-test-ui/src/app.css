@@ -18,7 +18,7 @@
   --square-last-move: rgba(155, 199, 0, 0.4);
   --square-check: rgba(255, 0, 0, 0.5);
 
-  --board-size: min(70vh, 500px);
+  --board-size: min(80vh, 600px);
   --square-size: calc(var(--board-size) / 8);
 
   --radius: 6px;
