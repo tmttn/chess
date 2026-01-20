@@ -1,5 +1,6 @@
 <script lang="ts">
   import Square from './Square.svelte';
+  import PromotionDialog from './PromotionDialog.svelte';
   import { gameStore, board, legalMoves, isCheck, sideToMove } from '../stores/game';
   import type { Move, PieceInfo } from '../wasm';
 
@@ -11,6 +12,7 @@
 
   let selectedSquare: string | null = $state(null);
   let lastMove: { from: string; to: string } | null = $state(null);
+  let pendingPromotion: { from: string; to: string } | null = $state(null);
 
   const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
   const ranks = ['8', '7', '6', '5', '4', '3', '2', '1'];
@@ -39,18 +41,44 @@
     return piece?.type === 'k' && piece.color === $sideToMove;
   }
 
+  function isPromotionMove(from: string, to: string): boolean {
+    const moves = getLegalMovesFrom(from).filter(m => m.to === to);
+    return moves.some(m => m.promotion);
+  }
+
+  function executeMove(from: string, to: string, promotion?: string) {
+    const moves = getLegalMovesFrom(from).filter(m => m.to === to);
+    const move = promotion
+      ? moves.find(m => m.promotion === promotion)
+      : moves[0];
+    if (move) {
+      gameStore.makeMove(move.uci);
+      lastMove = { from, to };
+    }
+    selectedSquare = null;
+    pendingPromotion = null;
+  }
+
+  function handlePromotionSelect(piece: 'q' | 'r' | 'b' | 'n') {
+    if (pendingPromotion) {
+      executeMove(pendingPromotion.from, pendingPromotion.to, piece);
+    }
+  }
+
+  function handlePromotionCancel() {
+    pendingPromotion = null;
+    selectedSquare = null;
+  }
+
   function handleSquareClick(square: string) {
     const piece = $board.get(square);
 
     // If we have a selected piece and clicking a legal target
     if (selectedSquare && isLegalTarget(square)) {
-      const move = getLegalMovesFrom(selectedSquare).find(m => m.to === square);
-      if (move) {
-        // Handle promotion - for now just promote to queen
-        const uci = move.promotion ? move.uci : move.uci;
-        gameStore.makeMove(uci);
-        lastMove = { from: selectedSquare, to: square };
-        selectedSquare = null;
+      if (isPromotionMove(selectedSquare, square)) {
+        pendingPromotion = { from: selectedSquare, to: square };
+      } else {
+        executeMove(selectedSquare, square);
       }
       return;
     }
@@ -86,13 +114,14 @@
   function handleDrop(e: DragEvent, square: string) {
     e.preventDefault();
     if (selectedSquare && isLegalTarget(square)) {
-      const move = getLegalMovesFrom(selectedSquare).find(m => m.to === square);
-      if (move) {
-        gameStore.makeMove(move.uci);
-        lastMove = { from: selectedSquare, to: square };
+      if (isPromotionMove(selectedSquare, square)) {
+        pendingPromotion = { from: selectedSquare, to: square };
+      } else {
+        executeMove(selectedSquare, square);
       }
+    } else {
+      selectedSquare = null;
     }
-    selectedSquare = null;
   }
 
   // Reset selection when game changes
@@ -135,6 +164,14 @@
     {/each}
   </div>
 </div>
+
+{#if pendingPromotion}
+  <PromotionDialog
+    color={$sideToMove}
+    onselect={handlePromotionSelect}
+    oncancel={handlePromotionCancel}
+  />
+{/if}
 
 <style>
   .board-container {

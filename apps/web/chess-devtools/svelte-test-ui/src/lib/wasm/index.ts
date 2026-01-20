@@ -84,6 +84,14 @@ export function makeMove(game: Game, uci: string): boolean {
   }
 }
 
+export function moveToSan(game: Game, uci: string): string | null {
+  try {
+    return game.moveToSan(uci);
+  } catch {
+    return null;
+  }
+}
+
 export function getBoardState(game: Game): Map<string, PieceInfo> {
   const board = new Map<string, PieceInfo>();
   const files = 'abcdefgh';

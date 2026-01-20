@@ -9,8 +9,8 @@
     for (let i = 0; i < history.length; i += 2) {
       pairs.push({
         number: Math.floor(i / 2) + 1,
-        white: history[i]?.uci ?? '',
-        black: history[i + 1]?.uci ?? null
+        white: history[i]?.san ?? '',
+        black: history[i + 1]?.san ?? null
       });
     }
 

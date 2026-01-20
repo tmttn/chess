@@ -146,6 +146,124 @@ impl Game {
     pub fn reset(&mut self) {
         self.position = StandardChess.initial_position();
     }
+
+    /// Converts a UCI move to Standard Algebraic Notation (SAN).
+    ///
+    /// Must be called before making the move since it needs the current position.
+    #[wasm_bindgen(js_name = moveToSan)]
+    pub fn move_to_san(&self, uci: &str) -> Result<String, JsError> {
+        use chess_core::{Move, MoveFlag, Piece};
+
+        let m = Move::from_uci(uci)
+            .ok_or_else(|| JsError::new(&format!("Invalid move format: {}", uci)))?;
+
+        // Find the legal move with correct flags
+        let legal_moves = self.rules.generate_moves(&self.position);
+        let legal_move = legal_moves
+            .as_slice()
+            .iter()
+            .find(|legal| {
+                legal.from() == m.from()
+                    && legal.to() == m.to()
+                    && legal.flag().promotion_piece() == m.flag().promotion_piece()
+            })
+            .ok_or_else(|| JsError::new(&format!("Illegal move: {}", uci)))?;
+
+        let from = legal_move.from();
+        let to = legal_move.to();
+        let flag = legal_move.flag();
+
+        // Get piece at from square
+        let (piece, _color) = self
+            .position
+            .piece_at(from)
+            .ok_or_else(|| JsError::new("No piece at from square"))?;
+
+        let mut san = String::new();
+
+        // Handle castling
+        if flag == MoveFlag::CastleKingside {
+            san.push_str("O-O");
+        } else if flag == MoveFlag::CastleQueenside {
+            san.push_str("O-O-O");
+        } else {
+            // Piece letter (except pawns)
+            if piece != Piece::Pawn {
+                san.push(match piece {
+                    Piece::Knight => 'N',
+                    Piece::Bishop => 'B',
+                    Piece::Rook => 'R',
+                    Piece::Queen => 'Q',
+                    Piece::King => 'K',
+                    Piece::Pawn => unreachable!(),
+                });
+
+                // Check for disambiguation - other pieces of same type that can reach the target
+                let same_piece_moves: Vec<_> = legal_moves
+                    .as_slice()
+                    .iter()
+                    .filter(|mv| {
+                        mv.to() == to
+                            && mv.from() != from
+                            && self
+                                .position
+                                .piece_at(mv.from())
+                                .map(|(p, _)| p == piece)
+                                .unwrap_or(false)
+                    })
+                    .collect();
+
+                if !same_piece_moves.is_empty() {
+                    let same_file = same_piece_moves.iter().any(|mv| mv.from().file() == from.file());
+                    let same_rank = same_piece_moves.iter().any(|mv| mv.from().rank() == from.rank());
+
+                    if !same_file {
+                        san.push(from.to_algebraic().chars().next().unwrap());
+                    } else if !same_rank {
+                        san.push(from.to_algebraic().chars().nth(1).unwrap());
+                    } else {
+                        san.push_str(&from.to_algebraic());
+                    }
+                }
+            }
+
+            // Capture indicator
+            let is_capture = self.position.piece_at(to).is_some() || flag == MoveFlag::EnPassant;
+            if is_capture {
+                if piece == Piece::Pawn {
+                    san.push(from.to_algebraic().chars().next().unwrap());
+                }
+                san.push('x');
+            }
+
+            // Destination square
+            san.push_str(&to.to_algebraic());
+
+            // Promotion
+            if let Some(promo_piece) = flag.promotion_piece() {
+                san.push('=');
+                san.push(match promo_piece {
+                    Piece::Queen => 'Q',
+                    Piece::Rook => 'R',
+                    Piece::Bishop => 'B',
+                    Piece::Knight => 'N',
+                    _ => 'Q',
+                });
+            }
+        }
+
+        // Check for check or checkmate after the move
+        let new_pos = self.rules.make_move(&self.position, *legal_move);
+        if self.rules.is_check(&new_pos) {
+            if self.rules.is_game_over(&new_pos) {
+                san.push('#');
+            } else {
+                san.push('+');
+            }
+        }
+
+        Ok(san)
+    }
 }
 
 impl Default for Game {

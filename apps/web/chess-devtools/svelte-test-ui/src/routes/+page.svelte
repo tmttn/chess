@@ -3,9 +3,34 @@
   import GameControls from '$lib/components/GameControls.svelte';
   import MoveHistory from '$lib/components/MoveHistory.svelte';
   import DebugPanel from '$lib/components/DebugPanel.svelte';
+  import { gameStore } from '$lib/stores/game';
 
   let flipped = $state(false);
+
+  function handleKeydown(e: KeyboardEvent) {
+    // Ignore if user is typing in an input
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+      return;
+    }
+
+    switch (e.key) {
+      case 'ArrowLeft':
+        e.preventDefault();
+        gameStore.undo();
+        break;
+      case 'f':
+        e.preventDefault();
+        flipped = !flipped;
+        break;
+      case 'n':
+        e.preventDefault();
+        gameStore.newGame();
+        break;
+    }
+  }
 </script>
+
+<svelte:window onkeydown={handleKeydown} />
 
 <main>
   <header>

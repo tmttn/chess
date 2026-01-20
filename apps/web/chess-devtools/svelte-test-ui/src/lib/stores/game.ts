@@ -4,6 +4,7 @@ import {
   loadFen,
   getLegalMoves,
   makeMove as wasmMakeMove,
+  moveToSan,
   getBoardState,
   parseUci,
   type Move,
@@ -17,7 +18,7 @@ export interface GameState {
   fen: string;
   legalMoves: Move[];
   board: Map<string, PieceInfo>;
-  moveHistory: { uci: string; fen: string }[];
+  moveHistory: { uci: string; san: string; fen: string }[];
   isCheck: boolean;
   isGameOver: boolean;
   result: string | null;
@@ -73,6 +74,9 @@ function createGameStore() {
         const move = parseUci(uci);
         const isCapture = state.board.has(move.to);
 
+        // Get SAN before making the move (needs current position)
+        const san = moveToSan(state.game, uci) ?? uci;
+
         const success = wasmMakeMove(state.game, uci);
         if (success) {
           const newState = refreshState(state.game);
@@ -89,7 +93,7 @@ function createGameStore() {
           return {
             ...state,
             ...newState,
-            moveHistory: [...state.moveHistory, { uci, fen: newState.fen! }]
+            moveHistory: [...state.moveHistory, { uci, san, fen: newState.fen! }]
           };
         }
         return state;
