@@ -9,7 +9,7 @@ use chess_analysis::{AnalysisConfig, GameAnalysis, GameAnalyzer, MoveInput};
 use chess_openings::{builtin::builtin_openings, OpeningDatabase};
 use clap::{Parser, Subcommand};
 use config::ArenaConfig;
-use game_runner::{GameRunner, MatchResult};
+use game_runner::{detect_opening, GameRunner, MatchResult};
 use serde::Deserialize;
 use storage::Storage;
 use uci_client::UciClient;
@@ -168,6 +168,10 @@ fn main() {
                         // Set bot names from config
                         result.white_name = white.clone();
                         result.black_name = black.clone();
+
+                        // Detect opening from game moves
+                        let db = OpeningDatabase::with_openings(builtin_openings());
+                        result.opening = detect_opening(&result.moves, &db);
 
                         match result.result {
                             MatchResult::WhiteWins => white_wins += 1,

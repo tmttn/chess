@@ -67,6 +67,15 @@ pub fn write_pgn<P: AsRef<Path>>(path: P, result: &GameResult) -> std::io::Resul
     writeln!(file, "[White \"{}\"]", result.white_name)?;
     writeln!(file, "[Black \"{}\"]", result.black_name)?;
     writeln!(file, "[Result \"{}\"]", result_str)?;
+
+    // Add optional opening headers if detected
+    if let Some(opening) = &result.opening {
+        writeln!(file, "[Opening \"{}\"]", opening.name)?;
+        if let Some(eco) = &opening.eco {
+            writeln!(file, "[ECO \"{}\"]", eco)?;
+        }
+    }
+
     writeln!(file)?;
 
     // Write moves in PGN format (UCI for now, SAN conversion later)
@@ -133,6 +142,7 @@ mod tests {
             result: MatchResult::WhiteWins,
             white_name: "TestEngineWhite".to_string(),
             black_name: "TestEngineBlack".to_string(),
+            opening: None,
         }
     }
 
@@ -264,6 +274,7 @@ mod tests {
             result: MatchResult::Draw,
             white_name: "LongGameWhite".to_string(),
             black_name: "LongGameBlack".to_string(),
+            opening: None,
         };
         write_pgn(&pgn_path, &result).expect("Failed to write PGN file");
 
@@ -329,6 +340,7 @@ mod tests {
             result: MatchResult::BlackWins,
             white_name: "White".to_string(),
             black_name: "Black".to_string(),
+            opening: None,
         };
         write_pgn(&pgn_path, &result).expect("Failed to write PGN file");
 
@@ -363,6 +375,7 @@ mod tests {
             result: MatchResult::Draw,
             white_name: "White".to_string(),
             black_name: "Black".to_string(),
+            opening: None,
         };
         write_pgn(&pgn_path, &result).expect("Failed to write PGN file");
 
@@ -394,6 +407,7 @@ mod tests {
             result: MatchResult::Draw,
             white_name: "White".to_string(),
             black_name: "Black".to_string(),
+            opening: None,
         };
         write_pgn(&pgn_path, &result).expect("Failed to write PGN file");
 
@@ -407,6 +421,90 @@ mod tests {
         assert!(
             contents.contains("[Result \"1/2-1/2\"]"),
             "Should contain result header"
+        );
+
+        fs::remove_file(&pgn_path).ok();
+    }
+
+    #[test]
+    fn test_write_pgn_with_opening_headers() {
+        use crate::game_runner::DetectedOpening;
+
+        let temp_dir = std::env::temp_dir();
+        let pgn_path = temp_dir.join("test_with_opening.pgn");
+
+        let result = GameResult {
+            moves: vec![
+                MoveRecord { uci: "e2e4".to_string(), search_info: None },
+                MoveRecord { uci: "e7e5".to_string(), search_info: None },
+                MoveRecord { uci: "g1f3".to_string(), search_info: None },
+                MoveRecord { uci: "b8c6".to_string(), search_info: None },
+                MoveRecord { uci: "f1c4".to_string(), search_info: None },
+            ],
+            result: MatchResult::WhiteWins,
+            white_name: "Minimax".to_string(),
+            black_name: "Random".to_string(),
+            opening: Some(DetectedOpening {
+                id: "italian-game".to_string(),
+                name: "Italian Game".to_string(),
+                eco: Some("C50".to_string()),
+            }),
+        };
+        write_pgn(&pgn_path, &result).expect("Failed to write PGN file");
+
+        let mut contents = String::new();
+        fs::File::open(&pgn_path)
+            .expect("Failed to open PGN file")
+            .read_to_string(&mut contents)
+            .expect("Failed to read PGN file");
+
+        // Verify opening headers
+        assert!(
+            contents.contains("[Opening \"Italian Game\"]"),
+            "Should contain Opening header"
+        );
+        assert!(
+            contents.contains("[ECO \"C50\"]"),
+            "Should contain ECO header"
+        );
+
+        fs::remove_file(&pgn_path).ok();
+    }
+
+    #[test]
+    fn test_write_pgn_with_opening_no_eco() {
+        use crate::game_runner::DetectedOpening;
+
+        let temp_dir = std::env::temp_dir();
+        let pgn_path = temp_dir.join("test_opening_no_eco.pgn");
+
+        let result = GameResult {
+            moves: vec![MoveRecord { uci: "e2e4".to_string(), search_info: None }],
+            result: MatchResult::Draw,
+            white_name: "Engine1".to_string(),
+            black_name: "Engine2".to_string(),
+            opening: Some(DetectedOpening {
+                id: "custom-opening".to_string(),
+                name: "Custom Opening".to_string(),
+                eco: None,
+            }),
+        };
+        write_pgn(&pgn_path, &result).expect("Failed to write PGN file");
+
+        let mut contents = String::new();
+        fs::File::open(&pgn_path)
+            .expect("Failed to open PGN file")
+            .read_to_string(&mut contents)
+            .expect("Failed to read PGN file");
+
+        // Verify opening header present, ECO absent
+        assert!(
+            contents.contains("[Opening \"Custom Opening\"]"),
+            "Should contain Opening header"
+        );
+        assert!(
+            !contents.contains("[ECO"),
+            "Should not contain ECO header when None"
         );
 
         fs::remove_file(&pgn_path).ok();

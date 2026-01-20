@@ -4,7 +4,7 @@
 //! including detailed search information from the UCI engines for each move.
 //! This is useful for analysis, machine learning, and detailed game review.
 
-use crate::game_runner::{GameResult, MatchResult, MoveRecord};
+use crate::game_runner::{DetectedOpening, GameResult, MatchResult, MoveRecord};
 use chrono::Utc;
 use serde::Serialize;
 use std::path::Path;
@@ -23,6 +23,9 @@ struct GameJson<'a> {
     black: &'a str,
     /// Game result: "white", "black", or "draw".
     result: &'a str,
+    /// Detected opening information, if recognized.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    opening: Option<&'a DetectedOpening>,
     /// Complete move list with search information.
     moves: &'a [MoveRecord],
     /// ISO 8601 timestamp when the file was created.
@@ -99,6 +102,7 @@ pub fn write_json<P: AsRef<Path>>(path: P, id: &str, result: &GameResult) -> std
         white: &result.white_name,
         black: &result.black_name,
         result: result_str,
+        opening: result.opening.as_ref(),
         moves: &result.moves,
         created_at: Utc::now().to_rfc3339(),
     };
@@ -148,6 +152,7 @@ mod tests {
             result: MatchResult::WhiteWins,
             white_name: "TestWhite".to_string(),
             black_name: "TestBlack".to_string(),
+            opening: None,
         };
 
         write_json(&json_path, "test-game-id", &result).expect("Failed to write JSON file");
@@ -245,6 +250,7 @@ mod tests {
             result: MatchResult::BlackWins,
             white_name: "White".to_string(),
             black_name: "Black".to_string(),
+            opening: None,
         };
 
         write_json(&json_path, "black-wins-id", &result).expect("Failed to write JSON file");
@@ -272,6 +278,7 @@ mod tests {
             result: MatchResult::Draw,
             white_name: "White".to_string(),
             black_name: "Black".to_string(),
+            opening: None,
         };
 
         write_json(&json_path, "draw-id", &result).expect("Failed to write JSON file");
@@ -303,6 +310,7 @@ mod tests {
             result: MatchResult::WhiteWins,
             white_name: "White".to_string(),
             black_name: "Black".to_string(),
+            opening: None,
         };
 
         write_json(&json_path, "null-info-id", &result).expect("Failed to write JSON file");
@@ -340,6 +348,7 @@ mod tests {
             result: MatchResult::WhiteWins,
             white_name: "White".to_string(),
             black_name: "Black".to_string(),
+            opening: None,
         };
 
         write_json(&json_path, "mate-score-id", &result).expect("Failed to write JSON file");
@@ -354,6 +363,79 @@ mod tests {
             serde_json::from_str(&contents).expect("Should be valid JSON");
         assert_eq!(parsed["moves"][0]["search_info"]["score_mate"], 3);
         assert!(parsed["moves"][0]["search_info"]["score_cp"].is_null());
+
+        fs::remove_file(&json_path).ok();
+    }
+
+    #[test]
+    fn test_write_json_with_opening() {
+        let temp_dir = std::env::temp_dir();
+        let json_path = temp_dir.join("test_with_opening.json");
+
+        let result = GameResult {
+            moves: vec![
+                MoveRecord { uci: "e2e4".to_string(), search_info: None },
+                MoveRecord { uci: "e7e5".to_string(), search_info: None },
+                MoveRecord { uci: "g1f3".to_string(), search_info: None },
+                MoveRecord { uci: "b8c6".to_string(), search_info: None },
+                MoveRecord { uci: "f1c4".to_string(), search_info: None },
+            ],
+            result: MatchResult::WhiteWins,
+            white_name: "Minimax".to_string(),
+            black_name: "Random".to_string(),
+            opening: Some(DetectedOpening {
+                id: "italian-game".to_string(),
+                name: "Italian Game".to_string(),
+                eco: Some("C50".to_string()),
+            }),
+        };
+
+        write_json(&json_path, "opening-test-id", &result).expect("Failed to write JSON file");
+
+        let mut contents = String::new();
+        fs::File::open(&json_path)
+            .expect("Failed to open JSON file")
+            .read_to_string(&mut contents)
+            .expect("Failed to read JSON file");
+
+        let parsed: serde_json::Value =
+            serde_json::from_str(&contents).expect("Should be valid JSON");
+
+        // Verify opening is included
+        assert!(!parsed["opening"].is_null(), "Opening should be present");
+        assert_eq!(parsed["opening"]["id"], "italian-game");
+        assert_eq!(parsed["opening"]["name"], "Italian Game");
+        assert_eq!(parsed["opening"]["eco"], "C50");
+
+        fs::remove_file(&json_path).ok();
+    }
+
+    #[test]
+    fn test_write_json_opening_is_omitted_when_none() {
+        let temp_dir = std::env::temp_dir();
+        let json_path = temp_dir.join("test_no_opening.json");
+
+        let result = GameResult {
+            moves: vec![MoveRecord { uci: "e2e4".to_string(), search_info: None }],
+            result: MatchResult::Draw,
+            white_name: "White".to_string(),
+            black_name: "Black".to_string(),
+            opening: None,
+        };
+
+        write_json(&json_path, "no-opening-id", &result).expect("Failed to write JSON file");
+
+        let mut contents = String::new();
+        fs::File::open(&json_path)
+            .expect("Failed to open JSON file")
+            .read_to_string(&mut contents)
+            .expect("Failed to read JSON file");
+
+        // Opening field should be omitted (skip_serializing_if)
+        assert!(
+            !contents.contains("\"opening\":"),
+            "Opening should not be present when None"
+        );
 
         fs::remove_file(&json_path).ok();
     }

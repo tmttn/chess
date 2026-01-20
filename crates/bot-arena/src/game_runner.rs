@@ -52,6 +52,17 @@ pub struct MoveRecord {
     pub search_info: Option<SearchInfo>,
 }
 
+/// Detected opening information for a game.
+#[derive(Debug, Clone, Default, serde::Serialize)]
+pub struct DetectedOpening {
+    /// The opening ID (e.g., "italian-game").
+    pub id: String,
+    /// The human-readable name (e.g., "Italian Game").
+    pub name: String,
+    /// The ECO code, if available (e.g., "C50").
+    pub eco: Option<String>,
+}
+
 /// The result of a completed game, containing move history and outcome.
 ///
 /// This struct captures all relevant information about a finished game,
@@ -66,6 +77,8 @@ pub struct GameResult {
     pub white_name: String,
     /// The name of the engine playing black.
     pub black_name: String,
+    /// The detected opening, if any was recognized.
+    pub opening: Option<DetectedOpening>,
 }
 
 /// The outcome of a chess game.
@@ -221,8 +234,34 @@ impl GameRunner {
             result,
             white_name,
             black_name,
+            opening: None, // Opening detection is done separately after game creation
         })
     }
+}
+
+/// Detects the opening from a game result using the provided database.
+///
+/// This function analyzes the move sequence and returns the longest matching
+/// opening from the database.
+///
+/// # Arguments
+///
+/// * `result` - The game result to analyze
+/// * `db` - The opening database to search
+///
+/// # Returns
+///
+/// Returns `Some(DetectedOpening)` if an opening was recognized, `None` otherwise.
+pub fn detect_opening(
+    moves: &[MoveRecord],
+    db: &chess_openings::OpeningDatabase,
+) -> Option<DetectedOpening> {
+    let uci_moves: Vec<String> = moves.iter().map(|m| m.uci.clone()).collect();
+    db.find_by_moves(&uci_moves).map(|opening| DetectedOpening {
+        id: opening.id.clone(),
+        name: opening.name.clone(),
+        eco: opening.eco.clone(),
+    })
 }
 
 #[cfg(test)]
@@ -261,6 +300,7 @@ mod tests {
             result: MatchResult::Draw,
             white_name: "Engine A".to_string(),
             black_name: "Engine B".to_string(),
+            opening: None,
         };
         let cloned = result.clone();
         assert_eq!(cloned.moves.len(), result.moves.len());
@@ -365,6 +405,7 @@ mod tests {
             result: MatchResult::WhiteWins,
             white_name: "Stockfish".to_string(),
             black_name: "Komodo".to_string(),
+            opening: None,
         };
         assert_eq!(result.result, MatchResult::WhiteWins);
         assert_eq!(result.white_name, "Stockfish");
@@ -378,6 +419,7 @@ mod tests {
             result: MatchResult::BlackWins,
             white_name: "Engine1".to_string(),
             black_name: "Engine2".to_string(),
+            opening: None,
         };
         assert_eq!(result.result, MatchResult::BlackWins);
     }
@@ -389,6 +431,7 @@ mod tests {
             result: MatchResult::Draw,
             white_name: "A".to_string(),
             black_name: "B".to_string(),
+            opening: None,
         };
         assert!(result.moves.is_empty());
         assert_eq!(result.result, MatchResult::Draw);
@@ -404,6 +447,7 @@ mod tests {
             result: MatchResult::Draw,
             white_name: "W".to_string(),
             black_name: "B".to_string(),
+            opening: None,
         };
         let debug = format!("{:?}", result);
         assert!(debug.contains("GameResult"));
@@ -473,5 +517,134 @@ mod tests {
         let debug = format!("{:?}", err);
         assert!(debug.contains("InvalidMove"));
         assert!(debug.contains("invalid"));
+    }
+
+    // ===== Opening Detection Tests =====
+
+    #[test]
+    fn test_detected_opening_default() {
+        let opening = DetectedOpening::default();
+        assert!(opening.id.is_empty());
+        assert!(opening.name.is_empty());
+        assert!(opening.eco.is_none());
+    }
+
+    #[test]
+    fn test_detected_opening_clone() {
+        let opening = DetectedOpening {
+            id: "italian-game".to_string(),
+            name: "Italian Game".to_string(),
+            eco: Some("C50".to_string()),
+        };
+        let cloned = opening.clone();
+        assert_eq!(cloned.id, "italian-game");
+        assert_eq!(cloned.name, "Italian Game");
+        assert_eq!(cloned.eco, Some("C50".to_string()));
+    }
+
+    #[test]
+    fn test_detected_opening_serialize() {
+        let opening = DetectedOpening {
+            id: "sicilian-defense".to_string(),
+            name: "Sicilian Defense".to_string(),
+            eco: Some("B20".to_string()),
+        };
+        let json = serde_json::to_string(&opening).expect("Failed to serialize");
+        assert!(json.contains("\"id\":\"sicilian-defense\""));
+        assert!(json.contains("\"name\":\"Sicilian Defense\""));
+        assert!(json.contains("\"eco\":\"B20\""));
+    }
+
+    #[test]
+    fn test_detected_opening_serialize_without_eco() {
+        let opening = DetectedOpening {
+            id: "custom-opening".to_string(),
+            name: "Custom Opening".to_string(),
+            eco: None,
+        };
+        let json = serde_json::to_string(&opening).expect("Failed to serialize");
+        assert!(json.contains("\"eco\":null"));
+    }
+
+    #[test]
+    fn test_detect_opening_finds_italian_game() {
+        use chess_openings::{builtin::builtin_openings, OpeningDatabase};
+
+        let db = OpeningDatabase::with_openings(builtin_openings());
+        let moves = vec![
+            MoveRecord { uci: "e2e4".to_string(), search_info: None },
+            MoveRecord { uci: "e7e5".to_string(), search_info: None },
+            MoveRecord { uci: "g1f3".to_string(), search_info: None },
+            MoveRecord { uci: "b8c6".to_string(), search_info: None },
+            MoveRecord { uci: "f1c4".to_string(), search_info: None },
+        ];
+
+        let detected = detect_opening(&moves, &db);
+        assert!(detected.is_some());
+        let opening = detected.unwrap();
+        assert_eq!(opening.id, "italian-game");
+        assert_eq!(opening.name, "Italian Game");
+        assert_eq!(opening.eco, Some("C50".to_string()));
+    }
+
+    #[test]
+    fn test_detect_opening_finds_sicilian() {
+        use chess_openings::{builtin::builtin_openings, OpeningDatabase};
+
+        let db = OpeningDatabase::with_openings(builtin_openings());
+        let moves = vec![
+            MoveRecord { uci: "e2e4".to_string(), search_info: None },
+            MoveRecord { uci: "c7c5".to_string(), search_info: None },
+        ];
+
+        let detected = detect_opening(&moves, &db);
+        assert!(detected.is_some());
+        let opening = detected.unwrap();
+        assert_eq!(opening.id, "sicilian-defense");
+    }
+
+    #[test]
+    fn test_detect_opening_returns_none_for_unknown() {
+        use chess_openings::{builtin::builtin_openings, OpeningDatabase};
+
+        let db = OpeningDatabase::with_openings(builtin_openings());
+        // Start with an unusual move that's not in the database
+        let moves = vec![
+            MoveRecord { uci: "a2a3".to_string(), search_info: None },
+            MoveRecord { uci: "a7a6".to_string(), search_info: None },
+        ];
+
+        let detected = detect_opening(&moves, &db);
+        assert!(detected.is_none());
+    }
+
+    #[test]
+    fn test_detect_opening_empty_moves() {
+        use chess_openings::{builtin::builtin_openings, OpeningDatabase};
+
+        let db = OpeningDatabase::with_openings(builtin_openings());
+        let moves: Vec<MoveRecord> = vec![];
+
+        let detected = detect_opening(&moves, &db);
+        assert!(detected.is_none());
+    }
+
+    #[test]
+    fn test_game_result_with_detected_opening() {
+        let result = GameResult {
+            moves: vec![MoveRecord { uci: "e2e4".to_string(), search_info: None }],
+            result: MatchResult::Draw,
+            white_name: "White".to_string(),
+            black_name: "Black".to_string(),
+            opening: Some(DetectedOpening {
+                id: "french-defense".to_string(),
+                name: "French Defense".to_string(),
+                eco: Some("C00".to_string()),
+            }),
+        };
+
+        assert!(result.opening.is_some());
+        let opening = result.opening.as_ref().unwrap();
+        assert_eq!(opening.id, "french-defense");
     }
 }

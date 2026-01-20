@@ -349,6 +349,7 @@ mod tests {
             result: MatchResult::WhiteWins,
             white_name: "engine_a".to_string(),
             black_name: "engine_b".to_string(),
+            opening: None,
         };
 
         let game_id = storage.save_game(&result).expect("Failed to save game");
@@ -379,6 +380,7 @@ mod tests {
             result: MatchResult::Draw,
             white_name: "engine_a".to_string(),
             black_name: "engine_b".to_string(),
+            opening: None,
         };
         storage
             .save_game(&draw_result)
