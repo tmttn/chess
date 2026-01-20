@@ -9,4 +9,4 @@ pub mod database;
 pub mod opening;
 
 pub use database::OpeningDatabase;
-pub use opening::{Opening, OpeningMove};
+pub use opening::{Opening, OpeningMove, OpeningSource, OpeningStats, STARTING_FEN};
