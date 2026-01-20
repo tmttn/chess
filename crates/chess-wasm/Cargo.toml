@@ -19,3 +19,8 @@ serde-wasm-bindgen = "0.6"
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
+
+[package.metadata.wasm-pack.profile.release]
+# Disable wasm-opt until bulk memory support is properly configured
+# See: https://github.com/aspect-build/rules_swc/issues/275
+wasm-opt = false
