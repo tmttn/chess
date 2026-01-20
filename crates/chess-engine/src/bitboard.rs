@@ -302,4 +302,167 @@ mod tests {
         assert_eq!(bb.pop_lsb().map(|s| s.index()), Some(3));
         assert_eq!(bb.pop_lsb(), None);
     }
+
+    #[test]
+    fn bitboard_empty_full() {
+        assert!(Bitboard::EMPTY.is_empty());
+        assert!(!Bitboard::EMPTY.is_not_empty());
+        assert!(!Bitboard::FULL.is_empty());
+        assert!(Bitboard::FULL.is_not_empty());
+    }
+
+    #[test]
+    fn bitboard_set_clear_toggle() {
+        let mut bb = Bitboard::EMPTY;
+        let e4 = Square::new(File::E, Rank::R4);
+
+        bb.set(e4);
+        assert!(bb.contains(e4));
+        assert_eq!(bb.count(), 1);
+
+        bb.clear(e4);
+        assert!(!bb.contains(e4));
+        assert!(bb.is_empty());
+
+        bb.toggle(Square::A1);
+        assert!(bb.contains(Square::A1));
+        bb.toggle(Square::A1);
+        assert!(!bb.contains(Square::A1));
+    }
+
+    #[test]
+    fn bitboard_lsb() {
+        assert_eq!(Bitboard::EMPTY.lsb(), None);
+        assert_eq!(Bitboard::from_square(Square::A1).lsb(), Some(0));
+        assert_eq!(Bitboard::from_square(Square::H8).lsb(), Some(63));
+        assert_eq!(Bitboard::new(0b1000).lsb(), Some(3));
+    }
+
+    #[test]
+    fn bitboard_shifts_comprehensive() {
+        let e4 = Square::new(File::E, Rank::R4);
+        let bb = Bitboard::from_square(e4);
+
+        // Test all 8 directions from e4
+        assert!(bb.north().contains(Square::new(File::E, Rank::R5)));
+        assert!(bb.south().contains(Square::new(File::E, Rank::R3)));
+        assert!(bb.east().contains(Square::new(File::F, Rank::R4)));
+        assert!(bb.west().contains(Square::new(File::D, Rank::R4)));
+        assert!(bb.north_east().contains(Square::new(File::F, Rank::R5)));
+        assert!(bb.north_west().contains(Square::new(File::D, Rank::R5)));
+        assert!(bb.south_east().contains(Square::new(File::F, Rank::R3)));
+        assert!(bb.south_west().contains(Square::new(File::D, Rank::R3)));
+    }
+
+    #[test]
+    fn bitboard_edge_shifts() {
+        // Test that edge shifts don't wrap around
+        let a_file = Bitboard::FILE_A;
+        assert!((a_file.west()).is_empty()); // Can't go west from A file
+
+        let h_file = Bitboard::FILE_H;
+        assert!((h_file.east()).is_empty()); // Can't go east from H file
+
+        // North/south edge cases
+        let rank_1 = Bitboard::RANK_1;
+        // South from rank 1 is empty
+        assert_eq!(rank_1.south().0, 0);
+    }
+
+    #[test]
+    fn bitboard_bitwise_ops() {
+        let a = Bitboard::new(0b1100);
+        let b = Bitboard::new(0b1010);
+
+        // BitAnd
+        assert_eq!((a & b).0, 0b1000);
+
+        // BitOr
+        assert_eq!((a | b).0, 0b1110);
+
+        // BitXor
+        assert_eq!((a ^ b).0, 0b0110);
+
+        // Not
+        assert_eq!((!Bitboard::EMPTY).0, !0u64);
+        assert_eq!((!Bitboard::FULL).0, 0u64);
+    }
+
+    #[test]
+    fn bitboard_bitwise_assign_ops() {
+        let mut bb = Bitboard::new(0b1100);
+        bb &= Bitboard::new(0b1010);
+        assert_eq!(bb.0, 0b1000);
+
+        let mut bb = Bitboard::new(0b1100);
+        bb |= Bitboard::new(0b0011);
+        assert_eq!(bb.0, 0b1111);
+
+        let mut bb = Bitboard::new(0b1100);
+        bb ^= Bitboard::new(0b1010);
+        assert_eq!(bb.0, 0b0110);
+    }
+
+    #[test]
+    fn bitboard_file_rank_constants() {
+        // Test file constants
+        assert_eq!(Bitboard::FILE_A.count(), 8);
+        assert_eq!(Bitboard::FILE_B.count(), 8);
+        assert_eq!(Bitboard::FILE_G.count(), 8);
+        assert_eq!(Bitboard::FILE_H.count(), 8);
+
+        // Test rank constants
+        assert_eq!(Bitboard::RANK_1.count(), 8);
+        assert_eq!(Bitboard::RANK_2.count(), 8);
+        assert_eq!(Bitboard::RANK_7.count(), 8);
+        assert_eq!(Bitboard::RANK_8.count(), 8);
+
+        // Test specific squares in files/ranks
+        assert!(Bitboard::FILE_A.contains(Square::A1));
+        assert!(Bitboard::FILE_A.contains(Square::A8));
+        assert!(!Bitboard::FILE_A.contains(Square::B1));
+
+        assert!(Bitboard::RANK_1.contains(Square::A1));
+        assert!(Bitboard::RANK_1.contains(Square::H1));
+        assert!(!Bitboard::RANK_1.contains(Square::new(File::A, Rank::R2)));
+    }
+
+    #[test]
+    fn bitboard_iterator_size_hint() {
+        let bb = Bitboard::new(0b1010101);
+        let iter = bb.into_iter();
+        let (lower, upper) = iter.size_hint();
+        assert_eq!(lower, 4);
+        assert_eq!(upper, Some(4));
+    }
+
+    #[test]
+    fn bitboard_iterator_empty() {
+        let bb = Bitboard::EMPTY;
+        let squares: Vec<Square> = bb.into_iter().collect();
+        assert!(squares.is_empty());
+    }
+
+    #[test]
+    fn bitboard_debug() {
+        let e4 = Square::new(File::E, Rank::R4);
+        let bb = Bitboard::from_square(e4);
+        let debug_str = format!("{:?}", bb);
+        assert!(debug_str.contains("Bitboard("));
+        assert!(debug_str.contains("X")); // The set square
+        assert!(debug_str.contains(".")); // Empty squares
+        assert!(debug_str.contains("a b c d e f g h")); // File labels
+    }
+
+    #[test]
+    fn bitboard_default() {
+        let bb = Bitboard::default();
+        assert_eq!(bb, Bitboard::EMPTY);
+    }
+
+    #[test]
+    fn bitboard_new() {
+        let bb = Bitboard::new(0x12345678);
+        assert_eq!(bb.0, 0x12345678);
+    }
 }

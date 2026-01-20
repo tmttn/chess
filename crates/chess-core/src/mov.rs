@@ -203,4 +203,101 @@ mod tests {
         assert!(Move::from_uci("invalid").is_none());
         assert!(Move::from_uci("e2e9").is_none());
     }
+
+    #[test]
+    fn move_flag_promotion_piece() {
+        assert_eq!(MoveFlag::Normal.promotion_piece(), None);
+        assert_eq!(MoveFlag::DoublePush.promotion_piece(), None);
+        assert_eq!(MoveFlag::CastleKingside.promotion_piece(), None);
+        assert_eq!(MoveFlag::CastleQueenside.promotion_piece(), None);
+        assert_eq!(MoveFlag::EnPassant.promotion_piece(), None);
+        assert_eq!(
+            MoveFlag::PromoteKnight.promotion_piece(),
+            Some(crate::Piece::Knight)
+        );
+        assert_eq!(
+            MoveFlag::PromoteBishop.promotion_piece(),
+            Some(crate::Piece::Bishop)
+        );
+        assert_eq!(
+            MoveFlag::PromoteRook.promotion_piece(),
+            Some(crate::Piece::Rook)
+        );
+        assert_eq!(
+            MoveFlag::PromoteQueen.promotion_piece(),
+            Some(crate::Piece::Queen)
+        );
+    }
+
+    #[test]
+    fn move_flag_is_promotion() {
+        assert!(!MoveFlag::Normal.is_promotion());
+        assert!(!MoveFlag::DoublePush.is_promotion());
+        assert!(!MoveFlag::CastleKingside.is_promotion());
+        assert!(!MoveFlag::EnPassant.is_promotion());
+        assert!(MoveFlag::PromoteKnight.is_promotion());
+        assert!(MoveFlag::PromoteBishop.is_promotion());
+        assert!(MoveFlag::PromoteRook.is_promotion());
+        assert!(MoveFlag::PromoteQueen.is_promotion());
+    }
+
+    #[test]
+    fn move_flag_is_castling() {
+        assert!(!MoveFlag::Normal.is_castling());
+        assert!(!MoveFlag::DoublePush.is_castling());
+        assert!(MoveFlag::CastleKingside.is_castling());
+        assert!(MoveFlag::CastleQueenside.is_castling());
+        assert!(!MoveFlag::EnPassant.is_castling());
+        assert!(!MoveFlag::PromoteQueen.is_castling());
+    }
+
+    #[test]
+    fn move_all_promotions_uci() {
+        let e7 = Square::new(File::E, Rank::R7);
+        let e8 = Square::new(File::E, Rank::R8);
+
+        assert_eq!(Move::new(e7, e8, MoveFlag::PromoteKnight).to_uci(), "e7e8n");
+        assert_eq!(Move::new(e7, e8, MoveFlag::PromoteBishop).to_uci(), "e7e8b");
+        assert_eq!(Move::new(e7, e8, MoveFlag::PromoteRook).to_uci(), "e7e8r");
+        assert_eq!(Move::new(e7, e8, MoveFlag::PromoteQueen).to_uci(), "e7e8q");
+    }
+
+    #[test]
+    fn move_from_uci_all_promotions() {
+        assert_eq!(Move::from_uci("e7e8n").unwrap().flag(), MoveFlag::PromoteKnight);
+        assert_eq!(Move::from_uci("e7e8N").unwrap().flag(), MoveFlag::PromoteKnight);
+        assert_eq!(Move::from_uci("e7e8b").unwrap().flag(), MoveFlag::PromoteBishop);
+        assert_eq!(Move::from_uci("e7e8B").unwrap().flag(), MoveFlag::PromoteBishop);
+        assert_eq!(Move::from_uci("e7e8r").unwrap().flag(), MoveFlag::PromoteRook);
+        assert_eq!(Move::from_uci("e7e8R").unwrap().flag(), MoveFlag::PromoteRook);
+        assert_eq!(Move::from_uci("e7e8q").unwrap().flag(), MoveFlag::PromoteQueen);
+        assert_eq!(Move::from_uci("e7e8Q").unwrap().flag(), MoveFlag::PromoteQueen);
+        // Invalid promotion character
+        assert!(Move::from_uci("e7e8x").is_none());
+    }
+
+    #[test]
+    fn move_null() {
+        let null = Move::NULL;
+        assert_eq!(null.from().index(), 0);
+        assert_eq!(null.to().index(), 0);
+    }
+
+    #[test]
+    fn move_debug_display() {
+        let e2 = Square::new(File::E, Rank::R2);
+        let e4 = Square::new(File::E, Rank::R4);
+        let m = Move::normal(e2, e4);
+        assert_eq!(format!("{:?}", m), "Move(e2e4)");
+        assert_eq!(format!("{}", m), "e2e4");
+    }
+
+    #[test]
+    fn move_from_uci_edge_cases() {
+        // Too short
+        assert!(Move::from_uci("e2").is_none());
+        assert!(Move::from_uci("e2e").is_none());
+        // Too long
+        assert!(Move::from_uci("e2e4qq").is_none());
+    }
 }

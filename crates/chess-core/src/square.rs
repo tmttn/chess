@@ -316,4 +316,87 @@ mod tests {
         assert_eq!(Square::H1.bitboard(), 128);
         assert_eq!(Square::A8.bitboard(), 1 << 56);
     }
+
+    #[test]
+    fn file_from_index() {
+        assert_eq!(File::from_index(0), Some(File::A));
+        assert_eq!(File::from_index(7), Some(File::H));
+        assert_eq!(File::from_index(8), None);
+    }
+
+    #[test]
+    fn file_from_char() {
+        assert_eq!(File::from_char('a'), Some(File::A));
+        assert_eq!(File::from_char('H'), Some(File::H));
+        assert_eq!(File::from_char('i'), None);
+    }
+
+    #[test]
+    fn file_display() {
+        assert_eq!(format!("{}", File::A), "a");
+        assert_eq!(format!("{}", File::H), "h");
+    }
+
+    #[test]
+    fn file_all() {
+        assert_eq!(File::ALL.len(), 8);
+        assert_eq!(File::ALL[0], File::A);
+        assert_eq!(File::ALL[7], File::H);
+    }
+
+    #[test]
+    fn rank_from_index() {
+        assert_eq!(Rank::from_index(0), Some(Rank::R1));
+        assert_eq!(Rank::from_index(7), Some(Rank::R8));
+        assert_eq!(Rank::from_index(8), None);
+    }
+
+    #[test]
+    fn rank_from_char() {
+        assert_eq!(Rank::from_char('1'), Some(Rank::R1));
+        assert_eq!(Rank::from_char('8'), Some(Rank::R8));
+        assert_eq!(Rank::from_char('9'), None);
+    }
+
+    #[test]
+    fn rank_display() {
+        assert_eq!(format!("{}", Rank::R1), "1");
+        assert_eq!(format!("{}", Rank::R8), "8");
+    }
+
+    #[test]
+    fn rank_all() {
+        assert_eq!(Rank::ALL.len(), 8);
+        assert_eq!(Rank::ALL[0], Rank::R1);
+        assert_eq!(Rank::ALL[7], Rank::R8);
+    }
+
+    #[test]
+    fn square_from_index() {
+        assert_eq!(Square::from_index(0), Some(Square::A1));
+        assert_eq!(Square::from_index(63), Some(Square::H8));
+        assert_eq!(Square::from_index(64), None);
+    }
+
+    #[test]
+    fn square_debug_display() {
+        let e4 = Square::new(File::E, Rank::R4);
+        assert_eq!(format!("{:?}", e4), "Square(e4)");
+        assert_eq!(format!("{}", e4), "e4");
+    }
+
+    #[test]
+    fn square_constants() {
+        // Test all defined constants
+        assert_eq!(Square::A1.index(), 0);
+        assert_eq!(Square::B1.index(), 1);
+        assert_eq!(Square::C1.index(), 2);
+        assert_eq!(Square::D1.index(), 3);
+        assert_eq!(Square::E1.index(), 4);
+        assert_eq!(Square::F1.index(), 5);
+        assert_eq!(Square::G1.index(), 6);
+        assert_eq!(Square::H1.index(), 7);
+        assert_eq!(Square::A8.index(), 56);
+        assert_eq!(Square::H8.index(), 63);
+    }
 }

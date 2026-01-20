@@ -232,4 +232,140 @@ mod tests {
             Err(FenError::InvalidActiveColor(_))
         ));
     }
+
+    #[test]
+    fn invalid_piece_placement_rank_count() {
+        // Too few ranks
+        assert!(matches!(
+            FenParser::parse("8/8/8/8/8/8/8 w KQkq - 0 1"),
+            Err(FenError::InvalidPiecePlacement(_))
+        ));
+    }
+
+    #[test]
+    fn invalid_piece_placement_invalid_char() {
+        // Invalid character 'x' in piece placement
+        assert!(matches!(
+            FenParser::parse("rnbqkbnr/pppppppp/8/8/8/8/PPPPXPPP/RNBQKBNR w KQkq - 0 1"),
+            Err(FenError::InvalidPiecePlacement(_))
+        ));
+    }
+
+    #[test]
+    fn invalid_piece_placement_wrong_squares() {
+        // Rank with wrong number of squares (9 instead of 8)
+        assert!(matches!(
+            FenParser::parse("rnbqkbnrr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"),
+            Err(FenError::InvalidPiecePlacement(_))
+        ));
+    }
+
+    #[test]
+    fn invalid_castling_rights() {
+        assert!(matches!(
+            FenParser::parse("8/8/8/8/8/8/8/8 w XYZ - 0 1"),
+            Err(FenError::InvalidCastlingRights(_))
+        ));
+    }
+
+    #[test]
+    fn invalid_en_passant_length() {
+        // Wrong length en passant
+        assert!(matches!(
+            FenParser::parse("8/8/8/8/8/8/8/8 w - abc 0 1"),
+            Err(FenError::InvalidEnPassantSquare(_))
+        ));
+    }
+
+    #[test]
+    fn invalid_en_passant_file() {
+        // Invalid file
+        assert!(matches!(
+            FenParser::parse("8/8/8/8/8/8/8/8 w - x3 0 1"),
+            Err(FenError::InvalidEnPassantSquare(_))
+        ));
+    }
+
+    #[test]
+    fn invalid_en_passant_rank() {
+        // Invalid rank (only 3 and 6 are valid for en passant)
+        assert!(matches!(
+            FenParser::parse("8/8/8/8/8/8/8/8 w - e4 0 1"),
+            Err(FenError::InvalidEnPassantSquare(_))
+        ));
+    }
+
+    #[test]
+    fn invalid_halfmove_clock() {
+        assert!(matches!(
+            FenParser::parse("8/8/8/8/8/8/8/8 w - - abc 1"),
+            Err(FenError::InvalidHalfmoveClock(_))
+        ));
+    }
+
+    #[test]
+    fn invalid_fullmove_number() {
+        assert!(matches!(
+            FenParser::parse("8/8/8/8/8/8/8/8 w - - 0 xyz"),
+            Err(FenError::InvalidFullmoveNumber(_))
+        ));
+    }
+
+    #[test]
+    fn fen_parser_default() {
+        let fen = FenParser::default();
+        assert_eq!(fen.active_color, 'w');
+        assert_eq!(fen.castling, "KQkq");
+        assert_eq!(fen.to_fen(), FenParser::STARTPOS);
+    }
+
+    #[test]
+    fn fen_black_to_move() {
+        let fen = FenParser::parse("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1")
+            .unwrap();
+        assert_eq!(fen.active_color, 'b');
+        assert_eq!(fen.en_passant, "e3");
+    }
+
+    #[test]
+    fn fen_no_castling() {
+        let fen = FenParser::parse("8/8/8/8/8/8/8/8 w - - 0 1").unwrap();
+        assert_eq!(fen.castling, "-");
+    }
+
+    #[test]
+    fn fen_partial_castling() {
+        let fen = FenParser::parse("8/8/8/8/8/8/8/8 w Kq - 0 1").unwrap();
+        assert_eq!(fen.castling, "Kq");
+    }
+
+    #[test]
+    fn fen_en_passant_rank_6() {
+        let fen = FenParser::parse("8/8/8/8/8/8/8/8 b - d6 0 1").unwrap();
+        assert_eq!(fen.en_passant, "d6");
+    }
+
+    #[test]
+    fn fen_error_display() {
+        let err = FenError::InvalidPartCount(3);
+        assert!(format!("{}", err).contains("3"));
+
+        let err = FenError::InvalidActiveColor("x".to_string());
+        assert!(format!("{}", err).contains("x"));
+
+        let err = FenError::InvalidPiecePlacement("bad".to_string());
+        assert!(format!("{}", err).contains("bad"));
+
+        let err = FenError::InvalidCastlingRights("XYZ".to_string());
+        assert!(format!("{}", err).contains("XYZ"));
+
+        let err = FenError::InvalidEnPassantSquare("z9".to_string());
+        assert!(format!("{}", err).contains("z9"));
+
+        let err = FenError::InvalidHalfmoveClock("abc".to_string());
+        assert!(format!("{}", err).contains("abc"));
+
+        let err = FenError::InvalidFullmoveNumber("xyz".to_string());
+        assert!(format!("{}", err).contains("xyz"));
+    }
 }

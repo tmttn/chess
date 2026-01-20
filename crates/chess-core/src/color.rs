@@ -73,4 +73,16 @@ mod tests {
         assert_eq!(Color::White.pawn_direction(), 1);
         assert_eq!(Color::Black.pawn_direction(), -1);
     }
+
+    #[test]
+    fn back_rank() {
+        assert_eq!(Color::White.back_rank(), 0);
+        assert_eq!(Color::Black.back_rank(), 7);
+    }
+
+    #[test]
+    fn display() {
+        assert_eq!(format!("{}", Color::White), "White");
+        assert_eq!(format!("{}", Color::Black), "Black");
+    }
 }

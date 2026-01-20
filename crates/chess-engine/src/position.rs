@@ -335,4 +335,94 @@ mod tests {
         assert!(!rights.can_castle_kingside(Color::White));
         assert!(rights.can_castle_queenside(Color::White));
     }
+
+    #[test]
+    fn castling_rights_remove_queenside() {
+        let mut rights = CastlingRights::ALL;
+        rights.remove_queenside(Color::Black);
+        assert!(rights.can_castle_kingside(Color::Black));
+        assert!(!rights.can_castle_queenside(Color::Black));
+    }
+
+    #[test]
+    fn castling_rights_remove_color() {
+        let mut rights = CastlingRights::ALL;
+        rights.remove_color(Color::White);
+        assert!(!rights.can_castle_kingside(Color::White));
+        assert!(!rights.can_castle_queenside(Color::White));
+        assert!(rights.can_castle_kingside(Color::Black));
+        assert!(rights.can_castle_queenside(Color::Black));
+    }
+
+    #[test]
+    fn castling_rights_none() {
+        let rights = CastlingRights::NONE;
+        assert!(!rights.can_castle_kingside(Color::White));
+        assert!(!rights.can_castle_queenside(Color::White));
+        assert!(!rights.can_castle_kingside(Color::Black));
+        assert!(!rights.can_castle_queenside(Color::Black));
+        assert_eq!(rights.raw(), 0);
+    }
+
+    #[test]
+    fn position_empty() {
+        let pos = Position::empty();
+        assert_eq!(pos.side_to_move, Color::White);
+        assert_eq!(pos.castling.raw(), 0);
+        assert_eq!(pos.en_passant, None);
+        assert_eq!(pos.halfmove_clock, 0);
+        assert_eq!(pos.fullmove_number, 1);
+        assert!(pos.occupied().is_empty());
+    }
+
+    #[test]
+    fn position_default() {
+        let pos = Position::default();
+        assert_eq!(pos.to_fen(), FenParser::STARTPOS);
+    }
+
+    #[test]
+    fn position_occupied_empty() {
+        let pos = Position::startpos();
+        // Starting position has 32 pieces
+        assert_eq!(pos.occupied().count(), 32);
+        assert_eq!(pos.empty_squares().count(), 32);
+    }
+
+    #[test]
+    fn position_pieces_of() {
+        let pos = Position::startpos();
+        // White pawns on rank 2
+        assert_eq!(pos.pieces_of(Piece::Pawn, Color::White).count(), 8);
+        // Black pawns on rank 7
+        assert_eq!(pos.pieces_of(Piece::Pawn, Color::Black).count(), 8);
+        // One king each
+        assert_eq!(pos.pieces_of(Piece::King, Color::White).count(), 1);
+        assert_eq!(pos.pieces_of(Piece::King, Color::Black).count(), 1);
+    }
+
+    #[test]
+    fn position_with_en_passant() {
+        let fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
+        let pos = Position::from_fen(fen).unwrap();
+        assert!(pos.en_passant.is_some());
+        assert_eq!(pos.en_passant.unwrap().to_algebraic(), "e3");
+        assert_eq!(pos.to_fen(), fen);
+    }
+
+    #[test]
+    fn position_no_castling() {
+        let fen = "r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w - - 0 1";
+        let pos = Position::from_fen(fen).unwrap();
+        assert!(!pos.castling.can_castle_kingside(Color::White));
+        assert!(!pos.castling.can_castle_queenside(Color::White));
+        assert_eq!(pos.to_fen(), fen);
+    }
+
+    #[test]
+    fn position_black_to_move() {
+        let fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1";
+        let pos = Position::from_fen(fen).unwrap();
+        assert_eq!(pos.side_to_move, Color::Black);
+    }
 }

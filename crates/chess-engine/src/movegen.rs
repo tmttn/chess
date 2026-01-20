@@ -129,4 +129,75 @@ mod tests {
         assert_eq!(list[0], m1);
         assert_eq!(list[1], m2);
     }
+
+    #[test]
+    fn movelist_default() {
+        let list = MoveList::default();
+        assert!(list.is_empty());
+        assert_eq!(list.len(), 0);
+    }
+
+    #[test]
+    fn movelist_clear() {
+        let mut list = MoveList::new();
+        let e2 = Square::new(chess_core::File::E, chess_core::Rank::R2);
+        let e4 = Square::new(chess_core::File::E, chess_core::Rank::R4);
+        list.push(Move::normal(e2, e4));
+        assert_eq!(list.len(), 1);
+
+        list.clear();
+        assert!(list.is_empty());
+        assert_eq!(list.len(), 0);
+    }
+
+    #[test]
+    fn movelist_as_slice() {
+        let mut list = MoveList::new();
+        let e2 = Square::new(chess_core::File::E, chess_core::Rank::R2);
+        let e4 = Square::new(chess_core::File::E, chess_core::Rank::R4);
+        let d2 = Square::new(chess_core::File::D, chess_core::Rank::R2);
+        let d4 = Square::new(chess_core::File::D, chess_core::Rank::R4);
+
+        list.push(Move::normal(e2, e4));
+        list.push(Move::normal(d2, d4));
+
+        let slice = list.as_slice();
+        assert_eq!(slice.len(), 2);
+        assert_eq!(slice[0], Move::normal(e2, e4));
+    }
+
+    #[test]
+    fn movelist_iterate() {
+        let mut list = MoveList::new();
+        let e2 = Square::new(chess_core::File::E, chess_core::Rank::R2);
+        let e4 = Square::new(chess_core::File::E, chess_core::Rank::R4);
+        let d2 = Square::new(chess_core::File::D, chess_core::Rank::R2);
+        let d4 = Square::new(chess_core::File::D, chess_core::Rank::R4);
+
+        let m1 = Move::normal(e2, e4);
+        let m2 = Move::normal(d2, d4);
+        list.push(m1);
+        list.push(m2);
+
+        let moves: Vec<&Move> = (&list).into_iter().collect();
+        assert_eq!(moves.len(), 2);
+        assert_eq!(*moves[0], m1);
+        assert_eq!(*moves[1], m2);
+    }
+
+    #[test]
+    fn movelist_debug() {
+        let mut list = MoveList::new();
+        let e2 = Square::new(chess_core::File::E, chess_core::Rank::R2);
+        let e4 = Square::new(chess_core::File::E, chess_core::Rank::R4);
+        list.push(Move::normal(e2, e4));
+
+        let debug_str = format!("{:?}", list);
+        assert!(debug_str.contains("e2e4"));
+    }
+
+    #[test]
+    fn movelist_max_moves_constant() {
+        assert_eq!(MoveList::MAX_MOVES, 256);
+    }
 }

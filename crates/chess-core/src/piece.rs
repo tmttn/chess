@@ -116,4 +116,50 @@ mod tests {
         assert!(Piece::Queen.is_slider());
         assert!(!Piece::King.is_slider());
     }
+
+    #[test]
+    fn piece_index() {
+        assert_eq!(Piece::Pawn.index(), 0);
+        assert_eq!(Piece::Knight.index(), 1);
+        assert_eq!(Piece::Bishop.index(), 2);
+        assert_eq!(Piece::Rook.index(), 3);
+        assert_eq!(Piece::Queen.index(), 4);
+        assert_eq!(Piece::King.index(), 5);
+    }
+
+    #[test]
+    fn piece_all() {
+        assert_eq!(Piece::ALL.len(), 6);
+        assert_eq!(Piece::ALL[0], Piece::Pawn);
+        assert_eq!(Piece::ALL[5], Piece::King);
+    }
+
+    #[test]
+    fn piece_display() {
+        assert_eq!(format!("{}", Piece::Pawn), "Pawn");
+        assert_eq!(format!("{}", Piece::Knight), "Knight");
+        assert_eq!(format!("{}", Piece::Bishop), "Bishop");
+        assert_eq!(format!("{}", Piece::Rook), "Rook");
+        assert_eq!(format!("{}", Piece::Queen), "Queen");
+        assert_eq!(format!("{}", Piece::King), "King");
+    }
+
+    #[test]
+    fn all_fen_chars() {
+        // Test all piece types with both colors
+        for piece in Piece::ALL {
+            let white_char = piece.to_fen_char(Color::White);
+            let black_char = piece.to_fen_char(Color::Black);
+            assert!(white_char.is_ascii_uppercase());
+            assert!(black_char.is_ascii_lowercase());
+            assert_eq!(
+                Piece::from_fen_char(white_char),
+                Some((piece, Color::White))
+            );
+            assert_eq!(
+                Piece::from_fen_char(black_char),
+                Some((piece, Color::Black))
+            );
+        }
+    }
 }
