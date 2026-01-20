@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { pieces, type PieceType } from '../pieces';
   import type { PieceInfo } from '../wasm';
 
   interface Props {
@@ -9,27 +8,29 @@
 
   let { piece, draggable = true }: Props = $props();
 
-  const fillColor = $derived(piece.color === 'white' ? '#fff' : '#333');
-  const strokeColor = $derived(piece.color === 'white' ? '#333' : '#fff');
+  // Lichess piece set - cburnett is the classic default
+  const PIECE_SET = 'cburnett';
+
+  // Map piece type to Lichess naming: wK, wQ, wR, wB, wN, wP, bK, etc.
+  const pieceMap: Record<string, string> = {
+    k: 'K', q: 'Q', r: 'R', b: 'B', n: 'N', p: 'P'
+  };
+
+  const pieceName = $derived(() => {
+    const colorPrefix = piece.color === 'white' ? 'w' : 'b';
+    return `${colorPrefix}${pieceMap[piece.type]}`;
+  });
+
+  const src = $derived(`https://lichess1.org/assets/piece/${PIECE_SET}/${pieceName()}.svg`);
 </script>
 
-<svg
-  viewBox="0 0 45 45"
+<img
+  {src}
+  alt={`${piece.color} ${piece.type}`}
   class="piece"
   class:draggable
-  role="img"
-  aria-label={`${piece.color} ${piece.type}`}
->
-  <g
-    fill={fillColor}
-    stroke={strokeColor}
-    stroke-width="1.5"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-  >
-    <path d={pieces[piece.type]} />
-  </g>
-</svg>
+  draggable="false"
+/>
 
 <style>
   .piece {
@@ -37,6 +38,7 @@
     height: 100%;
     pointer-events: none;
     user-select: none;
+    -webkit-user-drag: none;
   }
 
   .draggable {
