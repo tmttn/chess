@@ -27,7 +27,15 @@ impl RuleSet for StandardChess {
     }
 
     fn is_legal(&self, position: &Position, m: Move) -> bool {
-        self.generate_moves(position).as_slice().contains(&m)
+        // Compare by from/to squares and promotion piece only.
+        // This is needed because Move::from_uci doesn't set proper flags
+        // (e.g., DoublePush, EnPassant, Castling) - it defaults to Normal.
+        let moves = self.generate_moves(position);
+        moves.as_slice().iter().any(|legal| {
+            legal.from() == m.from()
+                && legal.to() == m.to()
+                && legal.flag().promotion_piece() == m.flag().promotion_piece()
+        })
     }
 
     fn make_move(&self, position: &Position, m: Move) -> Position {

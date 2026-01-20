@@ -79,11 +79,22 @@ impl Game {
         let m = chess_core::Move::from_uci(uci)
             .ok_or_else(|| JsError::new(&format!("Invalid move format: {}", uci)))?;
 
-        if !self.rules.is_legal(&self.position, m) {
-            return Err(JsError::new(&format!("Illegal move: {}", uci)));
-        }
+        // Find the matching legal move with correct flags (DoublePush, EnPassant, etc.)
+        // since from_uci doesn't set these flags properly.
+        let legal_move = self
+            .rules
+            .generate_moves(&self.position)
+            .as_slice()
+            .iter()
+            .find(|legal| {
+                legal.from() == m.from()
+                    && legal.to() == m.to()
+                    && legal.flag().promotion_piece() == m.flag().promotion_piece()
+            })
+            .copied()
+            .ok_or_else(|| JsError::new(&format!("Illegal move: {}", uci)))?;
 
-        self.position = self.rules.make_move(&self.position, m);
+        self.position = self.rules.make_move(&self.position, legal_move);
         Ok(())
     }
 
