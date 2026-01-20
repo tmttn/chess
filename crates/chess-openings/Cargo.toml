@@ -1,0 +1,17 @@
+[package]
+name = "chess-openings"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Chess opening book database and lookup"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+rand = "0.8"
+
+[dev-dependencies]
+tempfile = "3"

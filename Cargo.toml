@@ -4,6 +4,7 @@ members = [
     "crates/chess-core",
     "crates/chess-engine",
     "crates/chess-analysis",
+    "crates/chess-openings",
     "crates/chess-wasm",
     "crates/uci",
     "crates/bot-random",
