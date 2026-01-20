@@ -21,10 +21,12 @@
 //! println!("White accuracy: {:.1}%", analysis.white_stats.accuracy_percent);
 //! ```
 
+pub mod analyzer;
 pub mod engine;
 pub mod evaluation;
 pub mod quality;
 
+pub use analyzer::{AnalysisConfig, AnalyzerError, GameAnalyzer, MoveInput};
 pub use engine::{AnalysisEngine, EngineError, PositionAnalysis};
 pub use evaluation::Evaluation;
 pub use quality::{GameAnalysis, MoveAnalysis, MoveQuality, PlayerStats};
