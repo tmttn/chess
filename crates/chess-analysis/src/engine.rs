@@ -5,6 +5,9 @@ use std::io::{BufRead, BufReader, Write};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 use thiserror::Error;
 
+/// Maximum number of lines to read before giving up on a UCI response.
+pub const MAX_UCI_LINES: usize = 1000;
+
 /// Errors that can occur when working with chess engines.
 #[derive(Error, Debug)]
 pub enum EngineError {
@@ -106,7 +109,12 @@ impl AnalysisEngine {
         self.send_command("uci")?;
 
         let mut name = String::new();
+        let mut lines_read = 0;
         loop {
+            if lines_read > MAX_UCI_LINES {
+                return Err(EngineError::InitFailed);
+            }
+            lines_read += 1;
             let line = self.read_line()?;
             if line.starts_with("id name ") {
                 name = line.strip_prefix("id name ").unwrap_or("").to_string();
@@ -123,7 +131,12 @@ impl AnalysisEngine {
 
         // Send "isready" and wait for "readyok"
         self.send_command("isready")?;
+        let mut lines_read = 0;
         loop {
+            if lines_read > MAX_UCI_LINES {
+                return Err(EngineError::InitFailed);
+            }
+            lines_read += 1;
             let line = self.read_line()?;
             if line == "readyok" {
                 break;
@@ -187,7 +200,14 @@ impl AnalysisEngine {
         let mut nodes: u64 = 0;
         let mut pv: Vec<String> = Vec::new();
 
+        let mut lines_read = 0;
         loop {
+            if lines_read > MAX_UCI_LINES {
+                return Err(EngineError::InvalidResponse(
+                    "Too many lines without bestmove".to_string(),
+                ));
+            }
+            lines_read += 1;
             let line = self.read_line()?;
 
             if line.starts_with("info depth ") {
@@ -295,7 +315,12 @@ impl AnalysisEngine {
         self.send_command("ucinewgame")?;
         // Wait for engine to be ready after clearing
         self.send_command("isready")?;
+        let mut lines_read = 0;
         loop {
+            if lines_read > MAX_UCI_LINES {
+                return Err(EngineError::InitFailed);
+            }
+            lines_read += 1;
             let line = self.read_line()?;
             if line == "readyok" {
                 break;
@@ -314,7 +339,12 @@ impl AnalysisEngine {
     /// Read a line from the engine's output.
     fn read_line(&mut self) -> Result<String, EngineError> {
         let mut line = String::new();
-        self.stdout.read_line(&mut line)?;
+        let bytes = self.stdout.read_line(&mut line)?;
+        if bytes == 0 {
+            return Err(EngineError::InvalidResponse(
+                "Engine closed unexpectedly".to_string(),
+            ));
+        }
         Ok(line.trim().to_string())
     }
 }
@@ -432,5 +462,12 @@ mod tests {
         let line = "info depth 15 nodes 50000 pv e2e4";
         let result = AnalysisEngine::parse_info_line(line);
         assert!(result.is_none()); // Should return None if score is missing
+    }
+
+    #[test]
+    fn test_max_iterations_constant_exists() {
+        // Verify the constant exists and has a reasonable value
+        assert!(MAX_UCI_LINES > 0);
+        assert!(MAX_UCI_LINES >= 1000);
     }
 }
