@@ -1,0 +1,26 @@
+# Bot Arena Configuration
+# Defines available bots and match presets
+
+[bots.minimax]
+path = "./target/release/bot-minimax"
+time_control = "movetime 500"
+
+[bots.random]
+path = "./target/release/bot-random"
+time_control = "movetime 100"
+
+[presets.quick]
+games = 10
+time_control = "movetime 100"
+
+[presets.standard]
+games = 100
+time_control = "movetime 500"
+
+[presets.thorough]
+games = 1000
+time_control = "movetime 500"
+
+[presets.elo-test]
+games = 500
+time_control = "movetime 1000"

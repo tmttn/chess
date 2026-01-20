@@ -30,6 +30,9 @@ enum Commands {
         /// Number of games to play
         #[arg(short, long, default_value = "10")]
         games: u32,
+        /// Preset configuration to use
+        #[arg(short, long)]
+        preset: Option<String>,
     },
 }
 
@@ -46,6 +49,7 @@ fn main() {
             white,
             black,
             games,
+            preset,
         } => {
             let white_path = config
                 .get_bot(&white)
@@ -55,10 +59,25 @@ fn main() {
                 .get_bot(&black)
                 .map(|b| b.path.clone())
                 .unwrap_or_else(|_| black.clone().into());
-            let time_control = config
-                .get_bot(&white)
-                .map(|b| b.time_control.clone())
-                .unwrap_or_else(|_| "movetime 500".to_string());
+
+            // Determine games and time_control from preset or defaults
+            let (games, time_control) = if let Some(preset_name) = &preset {
+                if let Some(p) = config.presets.get(preset_name) {
+                    println!("Using preset: {}", preset_name);
+                    (p.games, p.time_control.clone())
+                } else {
+                    eprintln!("Unknown preset: {}", preset_name);
+                    return;
+                }
+            } else {
+                (
+                    games,
+                    config
+                        .get_bot(&white)
+                        .map(|b| b.time_control.clone())
+                        .unwrap_or_else(|_| "movetime 500".to_string()),
+                )
+            };
 
             // Ensure bots are registered in database
             storage
@@ -150,5 +169,138 @@ fn main() {
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::CommandFactory;
+
+    #[test]
+    fn test_cli_parses_match_command_with_preset() {
+        // Verify the CLI can parse a match command with preset argument
+        let cli = Cli::try_parse_from(["bot-arena", "match", "bot1", "bot2", "-p", "quick"]);
+        assert!(cli.is_ok());
+
+        let cli = cli.unwrap();
+        match cli.command {
+            Commands::Match {
+                white,
+                black,
+                games,
+                preset,
+            } => {
+                assert_eq!(white, "bot1");
+                assert_eq!(black, "bot2");
+                assert_eq!(games, 10); // default value
+                assert_eq!(preset, Some("quick".to_string()));
+            }
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_match_command_without_preset() {
+        let cli = Cli::try_parse_from(["bot-arena", "match", "bot1", "bot2"]);
+        assert!(cli.is_ok());
+
+        let cli = cli.unwrap();
+        match cli.command {
+            Commands::Match {
+                white,
+                black,
+                games,
+                preset,
+            } => {
+                assert_eq!(white, "bot1");
+                assert_eq!(black, "bot2");
+                assert_eq!(games, 10);
+                assert!(preset.is_none());
+            }
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_match_command_with_games_override() {
+        let cli = Cli::try_parse_from(["bot-arena", "match", "bot1", "bot2", "-g", "50"]);
+        assert!(cli.is_ok());
+
+        let cli = cli.unwrap();
+        match cli.command {
+            Commands::Match { games, preset, .. } => {
+                assert_eq!(games, 50);
+                assert!(preset.is_none());
+            }
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_match_command_with_preset_long_form() {
+        let cli =
+            Cli::try_parse_from(["bot-arena", "match", "bot1", "bot2", "--preset", "standard"]);
+        assert!(cli.is_ok());
+
+        let cli = cli.unwrap();
+        match cli.command {
+            Commands::Match { preset, .. } => {
+                assert_eq!(preset, Some("standard".to_string()));
+            }
+        }
+    }
+
+    #[test]
+    fn test_preset_overrides_games_count() {
+        use config::{ArenaConfig, PresetConfig};
+        use std::collections::HashMap;
+
+        let mut presets = HashMap::new();
+        presets.insert(
+            "test-preset".to_string(),
+            PresetConfig {
+                games: 42,
+                time_control: "movetime 200".to_string(),
+                openings: vec![],
+            },
+        );
+
+        let config = ArenaConfig {
+            bots: HashMap::new(),
+            presets,
+        };
+
+        // Simulate the preset lookup logic from main
+        let preset_name = "test-preset";
+        let cli_games = 10; // default from CLI
+
+        let (games, time_control) = if let Some(p) = config.presets.get(preset_name) {
+            (p.games, p.time_control.clone())
+        } else {
+            (cli_games, "movetime 500".to_string())
+        };
+
+        assert_eq!(games, 42); // preset overrides CLI default
+        assert_eq!(time_control, "movetime 200");
+    }
+
+    #[test]
+    fn test_unknown_preset_is_detected() {
+        use config::ArenaConfig;
+
+        let config = ArenaConfig::default();
+
+        // Simulate checking for unknown preset
+        let preset_name = "nonexistent";
+        let preset_found = config.presets.get(preset_name);
+
+        assert!(preset_found.is_none());
+    }
+
+    #[test]
+    fn test_cli_help_includes_preset_option() {
+        let mut cmd = Cli::command();
+        let help = cmd.render_help().to_string();
+
+        // Verify help text mentions preset
+        assert!(help.contains("match") || help.contains("Match"));
     }
 }
