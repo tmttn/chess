@@ -1,0 +1,13 @@
+[package]
+name = "bot-minimax"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "bot-minimax"
+path = "src/main.rs"
+
+[dependencies]
+chess-core = { path = "../chess-core" }
+chess-engine = { path = "../chess-engine" }
+uci = { path = "../uci" }

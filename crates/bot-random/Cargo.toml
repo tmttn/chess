@@ -1,0 +1,16 @@
+[package]
+name = "bot-random"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Example UCI chess bot that plays random legal moves"
+
+[[bin]]
+name = "bot-random"
+path = "src/main.rs"
+
+[dependencies]
+uci.workspace = true
+chess-core.workspace = true
+chess-engine.workspace = true
+rand = "0.8"

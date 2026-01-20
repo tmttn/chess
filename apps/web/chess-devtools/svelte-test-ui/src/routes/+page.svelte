@@ -3,6 +3,8 @@
   import GameControls from '$lib/components/GameControls.svelte';
   import MoveHistory from '$lib/components/MoveHistory.svelte';
   import DebugPanel from '$lib/components/DebugPanel.svelte';
+  import BotPanel from '$lib/components/BotPanel.svelte';
+  import BotDebugPanel from '$lib/components/BotDebugPanel.svelte';
   import { gameStore } from '$lib/stores/game';
 
   let flipped = $state(false);
@@ -53,6 +55,8 @@
       </div>
 
       <div class="side-panel">
+        <BotPanel />
+        <BotDebugPanel />
         <DebugPanel />
         <MoveHistory />
       </div>

@@ -1,0 +1,11 @@
+[package]
+name = "uci"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "UCI (Universal Chess Interface) protocol library with extensions"
+
+[dependencies]
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true

@@ -1,0 +1,14 @@
+# Bot configuration for chess-devtools
+# Each bot must speak UCI protocol over stdin/stdout
+
+port = 9999
+
+[bots.random]
+command = "./target/release/bot-random"
+
+[bots.minimax]
+command = "./target/release/bot-minimax"
+
+# Example: Add Stockfish if installed
+# [bots.stockfish]
+# command = "/usr/local/bin/stockfish"
