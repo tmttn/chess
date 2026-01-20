@@ -2,4 +2,8 @@
 
 export * from './types';
 
-// Components will be added in Task 9
+// Board components
+export { default as Board } from './Board.svelte';
+export { default as Square } from './Square.svelte';
+export { default as Piece } from './Piece.svelte';
+export { default as PromotionDialog } from './PromotionDialog.svelte';
