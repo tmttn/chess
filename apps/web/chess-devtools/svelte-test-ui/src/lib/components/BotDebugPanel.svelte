@@ -1,10 +1,16 @@
 <script lang="ts">
   import { botStore, searchInfo, lastOutput, isConnected } from '$lib/stores/bot';
+  import { isViewingHistory, viewSearchInfo } from '$lib/stores/game';
 
   let showRawOutput = $state(false);
   let connected = $derived($isConnected);
-  let info = $derived($searchInfo);
+  let liveInfo = $derived($searchInfo);
+  let historyInfo = $derived($viewSearchInfo);
+  let viewingHistory = $derived($isViewingHistory);
   let output = $derived($lastOutput);
+
+  // Show stored info from viewed move if available, otherwise live info (during active search)
+  let info = $derived(historyInfo ?? liveInfo);
 
   function formatScore(score: number): string {
     if (Math.abs(score) >= 90000) {
@@ -40,11 +46,15 @@
     </label>
   </div>
 
-  {#if !connected}
+  {#if viewingHistory && historyInfo}
+    <div class="history-notice">Viewing move's search info</div>
+  {/if}
+
+  {#if !connected && !viewingHistory}
     <div class="placeholder">
       Connect to a bot to see debug info
     </div>
-  {:else if showRawOutput}
+  {:else if showRawOutput && !viewingHistory}
     <div class="raw-output">
       {#each output.slice(-20) as line}
         <div class="output-line">{line}</div>
@@ -83,6 +93,10 @@
           <span class="pv-moves">{info.pv.join(' ')}</span>
         </div>
       {/if}
+    </div>
+  {:else if viewingHistory}
+    <div class="placeholder">
+      No search info for this move
     </div>
   {:else}
     <div class="placeholder">
@@ -123,6 +137,16 @@
 
   .toggle input {
     cursor: pointer;
+  }
+
+  .history-notice {
+    background: var(--accent);
+    color: white;
+    padding: 0.375rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    margin-bottom: 0.75rem;
+    text-align: center;
   }
 
   .placeholder {

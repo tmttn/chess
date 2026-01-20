@@ -13,17 +13,33 @@ import {
 } from '../wasm';
 import { playSound, preloadSounds } from '../sounds';
 
+export interface MoveSearchInfo {
+  depth: number;
+  score: number;
+  nodes: number;
+  time: number;
+  pv: string[];
+}
+
+export interface MoveHistoryEntry {
+  uci: string;
+  san: string;
+  fen: string;
+  searchInfo?: MoveSearchInfo; // Optional bot search info for this move
+}
+
 export interface GameState {
   game: Game | null;
-  fen: string;
-  legalMoves: Move[];
-  board: Map<string, PieceInfo>;
-  moveHistory: { uci: string; san: string; fen: string }[];
-  viewIndex: number; // -1 = start position, 0+ = after that move
-  isCheck: boolean;
-  isGameOver: boolean;
-  result: string | null;
-  sideToMove: 'white' | 'black';
+  fen: string;                // Live position FEN
+  legalMoves: Move[];         // Legal moves at live position
+  board: Map<string, PieceInfo>;  // Board at viewed position (for display)
+  liveBoard: Map<string, PieceInfo>; // Board at live position
+  moveHistory: MoveHistoryEntry[];
+  viewIndex: number;          // -1 = start position, 0+ = after that move
+  isCheck: boolean;           // At live position
+  isGameOver: boolean;        // At live position
+  result: string | null;      // At live position
+  sideToMove: 'white' | 'black'; // At live position
 }
 
 const STARTING_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
@@ -33,6 +49,7 @@ const initialState: GameState = {
   fen: STARTING_FEN,
   legalMoves: [],
   board: new Map(),
+  liveBoard: new Map(),
   moveHistory: [],
   viewIndex: -1,
   isCheck: false,
@@ -45,15 +62,24 @@ function createGameStore() {
   const { subscribe, set, update } = writable<GameState>(initialState);
 
   function refreshState(game: Game): Partial<GameState> {
+    const board = getBoardState(game);
     return {
       fen: game.toFen(),
       legalMoves: getLegalMoves(game),
-      board: getBoardState(game),
+      board: board,
+      liveBoard: board,
       isCheck: game.isCheck(),
       isGameOver: game.isGameOver(),
       result: game.result() ?? null,
       sideToMove: game.sideToMove() as 'white' | 'black'
     };
+  }
+
+  // Get board state for a given FEN (for viewing history)
+  function getBoardForFen(fen: string): Map<string, PieceInfo> {
+    const tempGame = loadFen(fen);
+    if (!tempGame) return new Map();
+    return getBoardState(tempGame);
   }
 
   return {
@@ -74,9 +100,9 @@ function createGameStore() {
       update(state => {
         if (!state.game) return state;
 
-        // Check if this is a capture (piece on destination square)
+        // Check if this is a capture (piece on destination square at live position)
         const move = parseUci(uci);
-        const isCapture = state.board.has(move.to);
+        const isCapture = state.liveBoard.has(move.to);
 
         // Get SAN before making the move (needs current position)
         const san = moveToSan(state.game, uci) ?? uci;
@@ -96,75 +122,88 @@ function createGameStore() {
             playSound('move');
           }
 
-          const newHistory = [...state.moveHistory.slice(0, state.viewIndex + 1), { uci, san, fen: newState.fen! }];
+          // Always append to end of history (never truncate)
+          const newHistory = [...state.moveHistory, { uci, san, fen: newState.fen! }];
           return {
             ...state,
             ...newState,
             moveHistory: newHistory,
-            viewIndex: newHistory.length - 1
+            viewIndex: newHistory.length - 1  // Jump to live position
           };
         }
         return state;
       });
     },
 
-    undo() {
+    // Navigate view backwards (doesn't affect live game state)
+    viewPrev() {
       update(state => {
-        if (!state.game || state.viewIndex < 0) return state;
+        if (state.viewIndex < 0) return state;
 
         const newIndex = state.viewIndex - 1;
-        const fenToLoad = newIndex >= 0
+        const fenToView = newIndex >= 0
           ? state.moveHistory[newIndex]!.fen
           : STARTING_FEN;
 
-        const newGame = loadFen(fenToLoad);
-        if (!newGame) return state;
-
         return {
           ...state,
-          game: newGame,
-          ...refreshState(newGame),
+          board: getBoardForFen(fenToView),
           viewIndex: newIndex
         };
       });
     },
 
-    redo() {
+    // Navigate view forwards (doesn't affect live game state)
+    viewNext() {
       update(state => {
-        if (!state.game || state.viewIndex >= state.moveHistory.length - 1) return state;
+        if (state.viewIndex >= state.moveHistory.length - 1) return state;
 
         const newIndex = state.viewIndex + 1;
-        const fenToLoad = state.moveHistory[newIndex]!.fen;
-
-        const newGame = loadFen(fenToLoad);
-        if (!newGame) return state;
+        const fenToView = state.moveHistory[newIndex]!.fen;
 
         return {
           ...state,
-          game: newGame,
-          ...refreshState(newGame),
+          board: getBoardForFen(fenToView),
           viewIndex: newIndex
         };
       });
     },
 
+    // Go to specific move in history (view only)
     goToMove(index: number) {
       update(state => {
-        if (!state.game) return state;
         if (index < -1 || index >= state.moveHistory.length) return state;
 
-        const fenToLoad = index >= 0
+        const fenToView = index >= 0
           ? state.moveHistory[index]!.fen
           : STARTING_FEN;
 
-        const newGame = loadFen(fenToLoad);
-        if (!newGame) return state;
-
         return {
           ...state,
-          game: newGame,
-          ...refreshState(newGame),
+          board: getBoardForFen(fenToView),
           viewIndex: index
+        };
+      });
+    },
+
+    // Go to start of game (view only)
+    goToStart() {
+      update(state => {
+        return {
+          ...state,
+          board: getBoardForFen(STARTING_FEN),
+          viewIndex: -1
+        };
+      });
+    },
+
+    // Go to live position (latest move)
+    goToLive() {
+      update(state => {
+        return {
+          ...state,
+          board: state.liveBoard,
+          viewIndex: state.moveHistory.length - 1
         };
       });
     },
@@ -189,11 +228,29 @@ function createGameStore() {
         ...refreshState(newGame)
       });
       return true;
+    },
+
+    // Attach search info to the last move (called by bot store after bestmove)
+    attachSearchInfoToLastMove(searchInfo: MoveSearchInfo) {
+      update(state => {
+        if (state.moveHistory.length === 0) return state;
+
+        const newHistory = [...state.moveHistory];
+        const lastIndex = newHistory.length - 1;
+        newHistory[lastIndex] = {
+          ...newHistory[lastIndex],
+          searchInfo
+        };
+
+        return { ...state, moveHistory: newHistory };
+      });
     }
   };
 }
 
 export const gameStore = createGameStore();
+
+const STARTING_FEN_CONST = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
 // Derived stores for convenience
 export const board: Readable<Map<string, PieceInfo>> = derived(gameStore, $game => $game.board);
@@ -202,3 +259,27 @@ export const sideToMove: Readable<'white' | 'black'> = derived(gameStore, $game 
 export const isCheck: Readable<boolean> = derived(gameStore, $game => $game.isCheck);
 export const isGameOver: Readable<boolean> = derived(gameStore, $game => $game.isGameOver);
 export const viewIndex: Readable<number> = derived(gameStore, $game => $game.viewIndex);
+export const isViewingHistory: Readable<boolean> = derived(
+  gameStore,
+  $game => $game.viewIndex < $game.moveHistory.length - 1
+);
+export const moveCount: Readable<number> = derived(gameStore, $game => $game.moveHistory.length);
+
+// Viewed position info (for history browsing)
+export const viewFen: Readable<string> = derived(
+  gameStore,
+  $game => $game.viewIndex >= 0
+    ? $game.moveHistory[$game.viewIndex]?.fen ?? STARTING_FEN_CONST
+    : STARTING_FEN_CONST
+);
+
+// Live position FEN
+export const liveFen: Readable<string> = derived(gameStore, $game => $game.fen);
+
+// Search info for viewed move (for history browsing)
+export const viewSearchInfo: Readable<MoveSearchInfo | null> = derived(
+  gameStore,
+  $game => $game.viewIndex >= 0
+    ? $game.moveHistory[$game.viewIndex]?.searchInfo ?? null
+    : null
+);

@@ -18,11 +18,19 @@
     switch (e.key) {
       case 'ArrowLeft':
         e.preventDefault();
-        gameStore.undo();
+        gameStore.viewPrev();
         break;
       case 'ArrowRight':
         e.preventDefault();
-        gameStore.redo();
+        gameStore.viewNext();
+        break;
+      case 'Home':
+        e.preventDefault();
+        gameStore.goToStart();
+        break;
+      case 'End':
+        e.preventDefault();
+        gameStore.goToLive();
         break;
       case 'f':
         e.preventDefault();

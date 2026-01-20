@@ -141,8 +141,14 @@ function createBotStore() {
             if (move && move !== '(none)' && move !== '0000' && pendingBotMove) {
               pendingBotMove = false;
               currentBotTurn = null;
+              // Capture search info before clearing
+              const lastSearchInfo = state.searchInfo;
               // Make the move in the game
               gameStore.makeMove(move);
+              // Attach search info to the move
+              if (lastSearchInfo) {
+                gameStore.attachSearchInfoToLastMove(lastSearchInfo);
+              }
             }
             // Clear search info on bestmove
             return { ...state, lastOutput: newOutput, searchInfo: null };
@@ -207,10 +213,8 @@ function createBotStore() {
       // Ensure bot is connected
       await ensureBotConnected(currentPlayer);
 
-      // Build the moves list from history
-      const moves = gameState.moveHistory
-        .slice(0, gameState.viewIndex + 1)
-        .map(m => m.uci);
+      // Build the moves list from full history (game is always at live position)
+      const moves = gameState.moveHistory.map(m => m.uci);
 
       // Send position and go commands to specific bot
       sendToBot({ type: 'uci', cmd: `position startpos${moves.length > 0 ? ' moves ' + moves.join(' ') : ''}`, bot: currentPlayer });
@@ -282,10 +286,18 @@ function createBotStore() {
 
     setWhitePlayer(player: 'human' | string) {
       update(s => ({ ...s, whitePlayer: player }));
+      // Reset pending state and check if we need to trigger a bot move
+      pendingBotMove = false;
+      currentBotTurn = null;
+      setTimeout(() => checkAndTriggerBotMove(), 0);
     },
 
     setBlackPlayer(player: 'human' | string) {
       update(s => ({ ...s, blackPlayer: player }));
+      // Reset pending state and check if we need to trigger a bot move
+      pendingBotMove = false;
+      currentBotTurn = null;
+      setTimeout(() => checkAndTriggerBotMove(), 0);
     },
 
     toggleAutoPlay() {
