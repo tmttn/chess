@@ -275,6 +275,138 @@ impl OpeningDatabase {
     {
         self.openings.iter().filter(|o| predicate(o)).collect()
     }
+
+    /// Finds the longest matching opening for a move sequence.
+    ///
+    /// An opening matches if its moves are a prefix of the provided sequence.
+    /// If multiple openings match, returns the one with the most moves (most specific).
+    ///
+    /// # Arguments
+    ///
+    /// * `moves` - The sequence of moves in UCI notation to match against
+    ///
+    /// # Returns
+    ///
+    /// The opening with the longest matching prefix, or `None` if no opening matches.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use chess_openings::{Opening, OpeningDatabase};
+    ///
+    /// let db = OpeningDatabase::with_openings(vec![
+    ///     Opening::new("open-game", "Open Game", vec!["e2e4".into(), "e7e5".into()], "fen1"),
+    ///     Opening::new("italian", "Italian Game", vec!["e2e4".into(), "e7e5".into(), "g1f3".into(), "b8c6".into(), "f1c4".into()], "fen2"),
+    /// ]);
+    ///
+    /// let moves = vec!["e2e4".into(), "e7e5".into(), "g1f3".into(), "b8c6".into(), "f1c4".into(), "f8c5".into()];
+    /// let opening = db.find_by_moves(&moves);
+    /// assert!(opening.is_some());
+    /// assert_eq!(opening.unwrap().id, "italian"); // Longer match wins
+    /// ```
+    #[must_use]
+    pub fn find_by_moves(&self, moves: &[String]) -> Option<&Opening> {
+        self.openings
+            .iter()
+            .filter(|o| {
+                // Opening matches if its moves are a prefix of the provided sequence
+                o.moves.len() <= moves.len()
+                    && o.moves.iter().zip(moves.iter()).all(|(a, b)| a == b)
+            })
+            .max_by_key(|o| o.moves.len())
+    }
+
+    /// Returns all openings whose moves are a prefix of the provided sequence.
+    ///
+    /// Unlike [`find_by_moves`], this returns all matching openings, not just the longest.
+    /// Results are sorted by move count in descending order (longest first).
+    ///
+    /// # Arguments
+    ///
+    /// * `moves` - The sequence of moves in UCI notation to match against
+    ///
+    /// # Returns
+    ///
+    /// A vector of all matching openings, sorted by move count descending.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use chess_openings::{Opening, OpeningDatabase};
+    ///
+    /// let db = OpeningDatabase::with_openings(vec![
+    ///     Opening::new("open-game", "Open Game", vec!["e2e4".into(), "e7e5".into()], "fen1"),
+    ///     Opening::new("italian", "Italian Game", vec!["e2e4".into(), "e7e5".into(), "g1f3".into(), "b8c6".into(), "f1c4".into()], "fen2"),
+    /// ]);
+    ///
+    /// let moves = vec!["e2e4".into(), "e7e5".into(), "g1f3".into(), "b8c6".into(), "f1c4".into(), "f8c5".into()];
+    /// let openings = db.find_all_by_moves(&moves);
+    /// assert_eq!(openings.len(), 2);
+    /// assert_eq!(openings[0].id, "italian"); // Longest first
+    /// assert_eq!(openings[1].id, "open-game");
+    /// ```
+    #[must_use]
+    pub fn find_all_by_moves(&self, moves: &[String]) -> Vec<&Opening> {
+        let mut matches: Vec<_> = self
+            .openings
+            .iter()
+            .filter(|o| {
+                // Opening matches if its moves are a prefix of the provided sequence
+                o.moves.len() <= moves.len()
+                    && o.moves.iter().zip(moves.iter()).all(|(a, b)| a == b)
+            })
+            .collect();
+
+        // Sort by move count descending (longest first)
+        matches.sort_by(|a, b| b.moves.len().cmp(&a.moves.len()));
+        matches
+    }
+
+    /// Returns openings that could follow from the given position.
+    ///
+    /// An opening is a continuation if the provided moves are a prefix of the opening's moves,
+    /// and the opening has additional moves beyond the given sequence.
+    ///
+    /// # Arguments
+    ///
+    /// * `moves` - The current sequence of moves in UCI notation
+    ///
+    /// # Returns
+    ///
+    /// A vector of openings that extend the given move sequence.
+    /// Openings that exactly match the given moves are NOT included.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use chess_openings::{Opening, OpeningDatabase};
+    ///
+    /// let db = OpeningDatabase::with_openings(vec![
+    ///     Opening::new("open-game", "Open Game", vec!["e2e4".into(), "e7e5".into()], "fen1"),
+    ///     Opening::new("italian", "Italian Game", vec!["e2e4".into(), "e7e5".into(), "g1f3".into(), "b8c6".into(), "f1c4".into()], "fen2"),
+    ///     Opening::new("scotch", "Scotch Game", vec!["e2e4".into(), "e7e5".into(), "g1f3".into(), "b8c6".into(), "d2d4".into()], "fen3"),
+    /// ]);
+    ///
+    /// let moves = vec!["e2e4".into(), "e7e5".into()];
+    /// let continuations = db.continuations_from(&moves);
+    /// assert_eq!(continuations.len(), 2); // Italian and Scotch, but NOT Open Game
+    /// ```
+    #[must_use]
+    pub fn continuations_from(&self, moves: &[String]) -> Vec<&Opening> {
+        self.openings
+            .iter()
+            .filter(|o| {
+                // The opening must have more moves than the provided sequence
+                // and the provided moves must be a prefix of the opening's moves
+                o.moves.len() > moves.len()
+                    && o.moves
+                        .iter()
+                        .take(moves.len())
+                        .zip(moves.iter())
+                        .all(|(a, b)| a == b)
+            })
+            .collect()
+    }
 }
 
 #[cfg(test)]
@@ -665,5 +797,284 @@ mod tests {
             db.by_id("italian").unwrap().name,
             cloned.by_id("italian").unwrap().name
         );
+    }
+
+    // ===== Move Sequence Lookup Tests =====
+
+    /// Helper function to create test openings for move sequence tests.
+    fn create_move_sequence_test_openings() -> Vec<Opening> {
+        vec![
+            // 1.e4 (1 move)
+            Opening::new(
+                "kings-pawn",
+                "King's Pawn Game",
+                vec!["e2e4".into()],
+                "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1",
+            ),
+            // 1.e4 e5 (2 moves)
+            Opening::new(
+                "open-game",
+                "Open Game",
+                vec!["e2e4".into(), "e7e5".into()],
+                "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
+            ),
+            // 1.e4 e5 2.Nf3 Nc6 3.Bc4 (5 moves) - Italian Game
+            Opening::new(
+                "italian",
+                "Italian Game",
+                vec![
+                    "e2e4".into(),
+                    "e7e5".into(),
+                    "g1f3".into(),
+                    "b8c6".into(),
+                    "f1c4".into(),
+                ],
+                "r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R b KQkq - 3 3",
+            ),
+            // 1.e4 e5 2.Nf3 Nc6 3.d4 (5 moves) - Scotch Game
+            Opening::new(
+                "scotch",
+                "Scotch Game",
+                vec![
+                    "e2e4".into(),
+                    "e7e5".into(),
+                    "g1f3".into(),
+                    "b8c6".into(),
+                    "d2d4".into(),
+                ],
+                "r1bqkbnr/pppp1ppp/2n5/4p3/3PP3/5N2/PPP2PPP/RNBQKB1R b KQkq d3 0 3",
+            ),
+            // 1.e4 e5 2.Nf3 Nc6 3.Bb5 (5 moves) - Ruy Lopez
+            Opening::new(
+                "ruy-lopez",
+                "Ruy Lopez",
+                vec![
+                    "e2e4".into(),
+                    "e7e5".into(),
+                    "g1f3".into(),
+                    "b8c6".into(),
+                    "f1b5".into(),
+                ],
+                "r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R b KQkq - 3 3",
+            ),
+            // 1.d4 (1 move) - Queen's Pawn
+            Opening::new(
+                "queens-pawn",
+                "Queen's Pawn Game",
+                vec!["d2d4".into()],
+                "rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR b KQkq - 0 1",
+            ),
+            // 1.e4 c5 (2 moves) - Sicilian
+            Opening::new(
+                "sicilian",
+                "Sicilian Defense",
+                vec!["e2e4".into(), "c7c5".into()],
+                "rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq c6 0 2",
+            ),
+        ]
+    }
+
+    #[test]
+    fn test_find_by_moves_empty() {
+        let openings = create_move_sequence_test_openings();
+        let db = OpeningDatabase::with_openings(openings);
+
+        // Empty move sequence should not match any opening
+        let result = db.find_by_moves(&[]);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_find_by_moves_returns_longest_match() {
+        let openings = create_move_sequence_test_openings();
+        let db = OpeningDatabase::with_openings(openings);
+
+        // Playing into Italian Game position and beyond
+        let moves = vec![
+            "e2e4".into(),
+            "e7e5".into(),
+            "g1f3".into(),
+            "b8c6".into(),
+            "f1c4".into(),
+            "f8c5".into(), // Giuoco Piano continuation
+        ];
+
+        let result = db.find_by_moves(&moves);
+        assert!(result.is_some());
+        let opening = result.unwrap();
+        assert_eq!(opening.id, "italian"); // 5 moves, longest match
+
+        // Matches: kings-pawn (1), open-game (2), italian (5)
+        // Should return italian as it has the most moves
+    }
+
+    #[test]
+    fn test_find_by_moves_returns_none_for_non_matching() {
+        let openings = create_move_sequence_test_openings();
+        let db = OpeningDatabase::with_openings(openings);
+
+        // Play a sequence that doesn't match any opening
+        let moves = vec!["g1f3".into(), "g8f6".into()]; // Reti Opening, not in our DB
+
+        let result = db.find_by_moves(&moves);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_find_by_moves_exact_match() {
+        let openings = create_move_sequence_test_openings();
+        let db = OpeningDatabase::with_openings(openings);
+
+        // Exact match for Italian Game
+        let moves = vec![
+            "e2e4".into(),
+            "e7e5".into(),
+            "g1f3".into(),
+            "b8c6".into(),
+            "f1c4".into(),
+        ];
+
+        let result = db.find_by_moves(&moves);
+        assert!(result.is_some());
+        assert_eq!(result.unwrap().id, "italian");
+    }
+
+    #[test]
+    fn test_find_all_by_moves_empty() {
+        let openings = create_move_sequence_test_openings();
+        let db = OpeningDatabase::with_openings(openings);
+
+        // Empty move sequence should not match any opening
+        let result = db.find_all_by_moves(&[]);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_find_all_by_moves_returns_multiple_sorted() {
+        let openings = create_move_sequence_test_openings();
+        let db = OpeningDatabase::with_openings(openings);
+
+        // Playing into Italian Game position and beyond
+        let moves = vec![
+            "e2e4".into(),
+            "e7e5".into(),
+            "g1f3".into(),
+            "b8c6".into(),
+            "f1c4".into(),
+            "f8c5".into(),
+        ];
+
+        let results = db.find_all_by_moves(&moves);
+
+        // Should match: italian (5), open-game (2), kings-pawn (1)
+        assert_eq!(results.len(), 3);
+
+        // Should be sorted by move count descending
+        assert_eq!(results[0].id, "italian"); // 5 moves
+        assert_eq!(results[1].id, "open-game"); // 2 moves
+        assert_eq!(results[2].id, "kings-pawn"); // 1 move
+    }
+
+    #[test]
+    fn test_find_all_by_moves_no_matches() {
+        let openings = create_move_sequence_test_openings();
+        let db = OpeningDatabase::with_openings(openings);
+
+        let moves = vec!["g1f3".into(), "g8f6".into()]; // Reti Opening, not in our DB
+
+        let results = db.find_all_by_moves(&moves);
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn test_continuations_from_empty() {
+        let openings = create_move_sequence_test_openings();
+        let db = OpeningDatabase::with_openings(openings);
+
+        // From starting position, all openings are continuations
+        let results = db.continuations_from(&[]);
+
+        // All 7 openings should be returned as they all have at least 1 move
+        assert_eq!(results.len(), 7);
+    }
+
+    #[test]
+    fn test_continuations_from_returns_proper_continuations() {
+        let openings = create_move_sequence_test_openings();
+        let db = OpeningDatabase::with_openings(openings);
+
+        // After 1.e4 e5, what openings can follow?
+        let moves = vec!["e2e4".into(), "e7e5".into()];
+
+        let results = db.continuations_from(&moves);
+
+        // Should return: Italian (5), Scotch (5), Ruy Lopez (5)
+        // Should NOT return: Open Game (2) - exact match, Kings Pawn (1), Queens Pawn (1), Sicilian (2)
+        assert_eq!(results.len(), 3);
+
+        let ids: Vec<&str> = results.iter().map(|o| o.id.as_str()).collect();
+        assert!(ids.contains(&"italian"));
+        assert!(ids.contains(&"scotch"));
+        assert!(ids.contains(&"ruy-lopez"));
+        assert!(!ids.contains(&"open-game")); // Exact match excluded
+    }
+
+    #[test]
+    fn test_continuations_from_excludes_exact_matches() {
+        let openings = create_move_sequence_test_openings();
+        let db = OpeningDatabase::with_openings(openings);
+
+        // The Italian Game exact move sequence
+        let moves = vec![
+            "e2e4".into(),
+            "e7e5".into(),
+            "g1f3".into(),
+            "b8c6".into(),
+            "f1c4".into(),
+        ];
+
+        let results = db.continuations_from(&moves);
+
+        // Should NOT include Italian Game itself (exact match)
+        // In our test data, there are no openings that extend beyond Italian Game
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn test_continuations_from_no_continuations() {
+        let openings = create_move_sequence_test_openings();
+        let db = OpeningDatabase::with_openings(openings);
+
+        // A position that no opening extends from
+        let moves = vec!["e2e4".into(), "c7c5".into(), "g1f3".into()]; // Sicilian with Nf3
+
+        let results = db.continuations_from(&moves);
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn test_find_by_moves_single_move() {
+        let openings = create_move_sequence_test_openings();
+        let db = OpeningDatabase::with_openings(openings);
+
+        // Just 1.e4
+        let moves = vec!["e2e4".into()];
+
+        let result = db.find_by_moves(&moves);
+        assert!(result.is_some());
+        assert_eq!(result.unwrap().id, "kings-pawn");
+    }
+
+    #[test]
+    fn test_find_by_moves_d4_opening() {
+        let openings = create_move_sequence_test_openings();
+        let db = OpeningDatabase::with_openings(openings);
+
+        // Just 1.d4
+        let moves = vec!["d2d4".into()];
+
+        let result = db.find_by_moves(&moves);
+        assert!(result.is_some());
+        assert_eq!(result.unwrap().id, "queens-pawn");
     }
 }
