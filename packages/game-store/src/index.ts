@@ -2,4 +2,4 @@
 
 export * from './types';
 export { createGameStore } from './store';
-export { lichessSounds, preloadSounds, isMuted, toggleMute } from './sounds';
+export { lichessSounds, preloadSounds, isMuted, toggleMute, clearSoundCache } from './sounds';

@@ -15,9 +15,10 @@ const soundUrls: Record<SoundType, string> = {
   gameEnd: `${SOUND_BASE}/Victory.mp3`,
 };
 
-/** Mute state store - persisted to localStorage if available */
+/** Mute state store */
 export const isMuted = writable(false);
 
+// Track mute state synchronously for playSound() to avoid async store reads
 let currentMuted = false;
 isMuted.subscribe((m) => (currentMuted = m));
 
@@ -51,9 +52,14 @@ function playSound(type: SoundType): void {
 
 /** Preload all sounds for instant playback */
 export function preloadSounds(): void {
-  Object.keys(soundUrls).forEach((type) => {
-    getAudio(type as SoundType);
+  (Object.keys(soundUrls) as SoundType[]).forEach((type) => {
+    getAudio(type);
   });
+}
+
+/** Clear the audio cache (useful for testing or cleanup) */
+export function clearSoundCache(): void {
+  audioCache.clear();
 }
 
 /**
