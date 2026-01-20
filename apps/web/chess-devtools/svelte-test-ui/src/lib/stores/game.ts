@@ -5,10 +5,12 @@ import {
   getLegalMoves,
   makeMove as wasmMakeMove,
   getBoardState,
+  parseUci,
   type Move,
   type PieceInfo,
   type Game
 } from '../wasm';
+import { playSound, preloadSounds } from '../sounds';
 
 export interface GameState {
   game: Game | null;
@@ -53,20 +55,37 @@ function createGameStore() {
     subscribe,
 
     init() {
+      preloadSounds();
       const game = createGame();
       set({
         ...initialState,
         game,
         ...refreshState(game)
       });
+      playSound('gameStart');
     },
 
     makeMove(uci: string) {
       update(state => {
         if (!state.game) return state;
+
+        // Check if this is a capture (piece on destination square)
+        const move = parseUci(uci);
+        const isCapture = state.board.has(move.to);
+
         const success = wasmMakeMove(state.game, uci);
         if (success) {
           const newState = refreshState(state.game);
+
+          // Play appropriate sound
+          if (newState.isCheck) {
+            playSound('check');
+          } else if (isCapture) {
+            playSound('capture');
+          } else {
+            playSound('move');
+          }
+
           return {
             ...state,
             ...newState,
@@ -105,6 +124,7 @@ function createGameStore() {
         game,
         ...refreshState(game)
       });
+      playSound('gameStart');
     },
 
     loadFen(fen: string): boolean {
