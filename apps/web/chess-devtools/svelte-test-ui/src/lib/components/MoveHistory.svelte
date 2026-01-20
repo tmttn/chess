@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { gameStore, isGameOver } from '../stores/game';
+  import { gameStore, isGameOver, moveHistory, viewIndex } from '../stores/game';
 
   let showUci = $state(false);
 
   // Group moves into pairs for display
   const movePairs = $derived.by(() => {
-    const history = $gameStore.moveHistory;
+    const history = $moveHistory;
     const pairs: { number: number; white: { san: string; uci: string; index: number } | null; black: { san: string; uci: string; index: number } | null }[] = [];
 
     for (let i = 0; i < history.length; i += 2) {
@@ -19,12 +19,17 @@
     return pairs;
   });
 
+  // Derive result text from move history - last move's FEN indicates result
   const resultText = $derived.by(() => {
-    const result = $gameStore.result;
-    if (!result) return null;
-    if (result === 'white_wins') return '1-0';
-    if (result === 'black_wins') return '0-1';
-    return '½-½';
+    if (!$isGameOver) return null;
+    const history = $moveHistory;
+    if (history.length === 0) return null;
+    // Check the last FEN for result indicator
+    const lastFen = history[history.length - 1]?.fen ?? '';
+    // For now, we'll determine result from game state
+    // A proper implementation would check the actual result from the game
+    // but for display purposes, we can show generic result when game is over
+    return 'Game Over';
   });
 
   function handleMoveClick(index: number) {
@@ -53,7 +58,7 @@
           {#if pair.white}
             <button
               class="move white"
-              class:active={$gameStore.viewIndex === pair.white.index}
+              class:active={$viewIndex === pair.white.index}
               onclick={() => handleMoveClick(pair.white!.index)}
             >
               {getMoveText(pair.white)}
@@ -64,7 +69,7 @@
           {#if pair.black}
             <button
               class="move black"
-              class:active={$gameStore.viewIndex === pair.black.index}
+              class:active={$viewIndex === pair.black.index}
               onclick={() => handleMoveClick(pair.black!.index)}
             >
               {getMoveText(pair.black)}

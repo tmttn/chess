@@ -1,4 +1,3 @@
 // Re-exports for convenience
-export { gameStore, board, legalMoves, sideToMove, isCheck, isGameOver } from './stores/game';
-export type { GameState } from './stores/game';
-export type { Move, PieceInfo } from './wasm';
+export { gameStore, board, legalMoves, sideToMove, isCheck, isGameOver, viewIndex, isViewingHistory, viewFen, liveFen, viewSearchInfo, moveHistory } from './stores/game';
+export type { MoveSearchInfo, MoveHistoryEntry, Move, PieceInfo } from './stores/game';

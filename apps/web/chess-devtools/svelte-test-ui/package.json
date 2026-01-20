@@ -20,6 +20,9 @@
     "vite": "^6.0.0"
   },
   "dependencies": {
+    "@tmttn-chess/board": "workspace:*",
+    "@tmttn-chess/bot-client": "workspace:*",
+    "@tmttn-chess/game-store": "workspace:*",
     "chess-wasm": "file:../../../../crates/chess-wasm/pkg"
   }
 }

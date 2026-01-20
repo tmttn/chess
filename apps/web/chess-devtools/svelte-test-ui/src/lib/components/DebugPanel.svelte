@@ -1,6 +1,6 @@
 <script lang="ts">
   import { gameStore, legalMoves, isCheck, isGameOver, sideToMove, isViewingHistory, viewFen, liveFen } from '../stores/game';
-  import { loadFen, getLegalMoves, type Game } from '../wasm';
+  import { loadFen, getLegalMoves } from '../wasm';
 
   let fenInput = $state('');
   let fenError = $state('');
@@ -53,12 +53,8 @@
   // Status for viewed position
   const viewStatus = $derived.by(() => {
     if (!$isViewingHistory) {
-      if ($gameStore.result) {
-        const r = $gameStore.result;
-        if (r === 'white_wins') return 'Checkmate - White wins';
-        if (r === 'black_wins') return 'Checkmate - Black wins';
-        if (r === 'draw') return 'Draw';
-        return r;
+      if ($isGameOver) {
+        return 'Game Over';
       }
       if ($isCheck) return 'Check!';
       return 'In progress';

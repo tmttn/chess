@@ -1,13 +1,36 @@
 <script lang="ts">
-  import Board from '$lib/components/Board.svelte';
+  import { Board } from '@tmttn-chess/board';
   import GameControls from '$lib/components/GameControls.svelte';
   import MoveHistory from '$lib/components/MoveHistory.svelte';
   import DebugPanel from '$lib/components/DebugPanel.svelte';
   import BotPanel from '$lib/components/BotPanel.svelte';
   import BotDebugPanel from '$lib/components/BotDebugPanel.svelte';
-  import { gameStore } from '$lib/stores/game';
+  import { gameStore, board, legalMoves, sideToMove, isCheck } from '$lib/stores/game';
 
   let flipped = $state(false);
+  let lastMove: { from: string; to: string } | null = $state(null);
+
+  // Compute check square: find the king that's in check
+  const checkSquare = $derived.by(() => {
+    if (!$isCheck) return null;
+
+    // Find the king of the side to move (who is in check)
+    for (const [square, piece] of $board.entries()) {
+      if (piece.type === 'k' && piece.color === $sideToMove) {
+        return square;
+      }
+    }
+    return null;
+  });
+
+  function handleMove(from: string, to: string, promotion?: string) {
+    // Build UCI string
+    const uci = from + to + (promotion ?? '');
+    const success = gameStore.makeMove(uci);
+    if (success) {
+      lastMove = { from, to };
+    }
+  }
 
   function handleKeydown(e: KeyboardEvent) {
     // Ignore if user is typing in an input
@@ -39,6 +62,7 @@
       case 'n':
         e.preventDefault();
         gameStore.newGame();
+        lastMove = null;
         break;
     }
   }
@@ -59,7 +83,15 @@
 
     <div class="main-content">
       <div class="board-area">
-        <Board {flipped} />
+        <Board
+          board={$board}
+          legalMoves={$legalMoves}
+          {flipped}
+          {lastMove}
+          check={checkSquare}
+          sideToMove={$sideToMove}
+          onMove={handleMove}
+        />
       </div>
 
       <div class="side-panel">

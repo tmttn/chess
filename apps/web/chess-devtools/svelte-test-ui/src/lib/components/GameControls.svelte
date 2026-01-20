@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { gameStore, isViewingHistory, viewIndex, moveCount } from '../stores/game';
-  import { isMuted, toggleMute } from '../sounds';
+  import { gameStore, isViewingHistory, viewIndex, moveHistory } from '../stores/game';
+  import { isMuted, toggleMute } from '@tmttn-chess/game-store';
 
   interface Props {
     onflip: () => void;
@@ -9,8 +9,9 @@
   let { onflip }: Props = $props();
 
   let canGoPrev = $derived($viewIndex >= 0);
-  let canGoNext = $derived($viewIndex < $moveCount - 1);
+  let canGoNext = $derived($viewIndex < $moveHistory.length - 1);
   let viewing = $derived($isViewingHistory);
+  let totalMoves = $derived($moveHistory.length);
 </script>
 
 <div class="controls">
@@ -57,7 +58,7 @@
 
 {#if viewing}
   <div class="viewing-indicator">
-    <span>Viewing move {$viewIndex + 1} of {$moveCount}</span>
+    <span>Viewing move {$viewIndex + 1} of {totalMoves}</span>
     <button onclick={() => gameStore.goToLive()} class="go-live-btn">Go to live</button>
   </div>
 {/if}
