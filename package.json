@@ -1,0 +1,15 @@
+{
+  "name": "chess-monorepo",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/web/chess-devtools/svelte-test-ui"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces --if-present"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0"
+  }
+}
