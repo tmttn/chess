@@ -19,7 +19,3 @@ serde-wasm-bindgen = "0.6"
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
-
-[profile.release]
-# Optimize for size in WASM
-opt-level = "s"

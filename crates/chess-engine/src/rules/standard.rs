@@ -44,9 +44,7 @@ impl RuleSet for StandardChess {
         // 4. Special rules for castling, en passant
         //
         // For now, check if move is in generated moves
-        self.generate_moves(position)
-            .as_slice()
-            .contains(&m)
+        self.generate_moves(position).as_slice().contains(&m)
     }
 
     fn make_move(&self, position: &Position, m: Move) -> Position {

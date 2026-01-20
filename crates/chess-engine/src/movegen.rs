@@ -114,8 +114,13 @@ mod tests {
         let mut list = MoveList::new();
         assert!(list.is_empty());
 
-        let m1 = Move::normal(Square::E2, Square::new(chess_core::File::E, chess_core::Rank::R4));
-        let m2 = Move::normal(Square::D2, Square::new(chess_core::File::D, chess_core::Rank::R4));
+        let e2 = Square::new(chess_core::File::E, chess_core::Rank::R2);
+        let e4 = Square::new(chess_core::File::E, chess_core::Rank::R4);
+        let d2 = Square::new(chess_core::File::D, chess_core::Rank::R2);
+        let d4 = Square::new(chess_core::File::D, chess_core::Rank::R4);
+
+        let m1 = Move::normal(e2, e4);
+        let m2 = Move::normal(d2, d4);
 
         list.push(m1);
         list.push(m2);

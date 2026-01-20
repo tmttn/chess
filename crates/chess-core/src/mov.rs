@@ -69,9 +69,7 @@ impl Move {
     /// Creates a new move.
     #[inline]
     pub const fn new(from: Square, to: Square, flag: MoveFlag) -> Self {
-        let encoded = (from.index() as u16)
-            | ((to.index() as u16) << 6)
-            | ((flag as u16) << 12);
+        let encoded = (from.index() as u16) | ((to.index() as u16) << 6) | ((flag as u16) << 12);
         Move(encoded)
     }
 

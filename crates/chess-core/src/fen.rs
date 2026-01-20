@@ -50,8 +50,7 @@ pub struct FenParser {
 
 impl FenParser {
     /// The standard starting position FEN.
-    pub const STARTPOS: &'static str =
-        "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    pub const STARTPOS: &'static str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
     /// Parses a FEN string.
     pub fn parse(fen: &str) -> Result<Self, FenError> {
@@ -206,10 +205,9 @@ mod tests {
 
     #[test]
     fn parse_custom_position() {
-        let fen = FenParser::parse(
-            "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3",
-        )
-        .unwrap();
+        let fen =
+            FenParser::parse("r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3")
+                .unwrap();
         assert_eq!(fen.active_color, 'w');
         assert_eq!(fen.halfmove_clock, 2);
         assert_eq!(fen.fullmove_number, 3);

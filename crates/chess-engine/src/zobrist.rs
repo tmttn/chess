@@ -9,6 +9,9 @@
 //!
 //! This allows efficient incremental updates when making moves.
 
+// Allow dead code - this module is scaffolded for future use in move generation
+#![allow(dead_code)]
+
 use chess_core::{Color, Piece, Square};
 
 /// Zobrist hash keys.

@@ -293,7 +293,10 @@ mod tests {
     #[test]
     fn square_from_algebraic() {
         assert_eq!(Square::from_algebraic("a1"), Some(Square::A1));
-        assert_eq!(Square::from_algebraic("e4"), Some(Square::new(File::E, Rank::R4)));
+        assert_eq!(
+            Square::from_algebraic("e4"),
+            Some(Square::new(File::E, Rank::R4))
+        );
         assert_eq!(Square::from_algebraic("h8"), Some(Square::H8));
         assert_eq!(Square::from_algebraic("i1"), None);
         assert_eq!(Square::from_algebraic("a9"), None);
