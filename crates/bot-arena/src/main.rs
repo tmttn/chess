@@ -67,7 +67,7 @@ fn main() {
                     (p.games, p.time_control.clone())
                 } else {
                     eprintln!("Unknown preset: {}", preset_name);
-                    return;
+                    std::process::exit(1);
                 }
             } else {
                 (
@@ -297,10 +297,14 @@ mod tests {
 
     #[test]
     fn test_cli_help_includes_preset_option() {
-        let mut cmd = Cli::command();
-        let help = cmd.render_help().to_string();
+        let cmd = Cli::command();
+        let match_cmd = cmd
+            .get_subcommands()
+            .find(|c| c.get_name() == "match")
+            .expect("match subcommand exists");
+        let help = match_cmd.clone().render_help().to_string();
 
-        // Verify help text mentions preset
-        assert!(help.contains("match") || help.contains("Match"));
+        // Verify help text mentions preset option
+        assert!(help.contains("preset") || help.contains("-p"));
     }
 }
