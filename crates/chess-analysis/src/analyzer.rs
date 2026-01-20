@@ -144,6 +144,13 @@ impl GameAnalyzer {
         moves: &[MoveInput],
         result: &str,
     ) -> Result<GameAnalysis, AnalyzerError> {
+        // Validate input
+        if moves.is_empty() {
+            return Err(AnalyzerError::InvalidGame(
+                "no moves to analyze".to_string(),
+            ));
+        }
+
         // Clear engine hash tables for fresh analysis
         self.engine.clear_hash()?;
 
