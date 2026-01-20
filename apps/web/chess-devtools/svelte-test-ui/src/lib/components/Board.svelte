@@ -102,6 +102,13 @@
     selectedSquare = square;
     e.dataTransfer!.effectAllowed = 'move';
     e.dataTransfer!.setData('text/plain', square);
+
+    // Create custom drag image (just the piece, no yellow background)
+    const img = (e.target as HTMLElement).querySelector('img');
+    if (img) {
+      const size = img.offsetWidth;
+      e.dataTransfer!.setDragImage(img, size / 2, size / 2);
+    }
   }
 
   function handleDragOver(e: DragEvent, square: string) {

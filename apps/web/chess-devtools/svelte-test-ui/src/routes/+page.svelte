@@ -18,6 +18,10 @@
         e.preventDefault();
         gameStore.undo();
         break;
+      case 'ArrowRight':
+        e.preventDefault();
+        gameStore.redo();
+        break;
       case 'f':
         e.preventDefault();
         flipped = !flipped;

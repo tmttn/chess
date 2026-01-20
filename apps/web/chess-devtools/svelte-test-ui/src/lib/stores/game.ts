@@ -19,18 +19,22 @@ export interface GameState {
   legalMoves: Move[];
   board: Map<string, PieceInfo>;
   moveHistory: { uci: string; san: string; fen: string }[];
+  viewIndex: number; // -1 = start position, 0+ = after that move
   isCheck: boolean;
   isGameOver: boolean;
   result: string | null;
   sideToMove: 'white' | 'black';
 }
 
+const STARTING_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+
 const initialState: GameState = {
   game: null,
-  fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+  fen: STARTING_FEN,
   legalMoves: [],
   board: new Map(),
   moveHistory: [],
+  viewIndex: -1,
   isCheck: false,
   isGameOver: false,
   result: null,
@@ -82,7 +86,9 @@ function createGameStore() {
           const newState = refreshState(state.game);
 
           // Play appropriate sound
-          if (newState.isCheck) {
+          if (newState.isGameOver) {
+            playSound('gameEnd');
+          } else if (newState.isCheck) {
             playSound('check');
           } else if (isCapture) {
             playSound('capture');
@@ -90,10 +96,12 @@ function createGameStore() {
             playSound('move');
           }
 
+          const newHistory = [...state.moveHistory.slice(0, state.viewIndex + 1), { uci, san, fen: newState.fen! }];
           return {
             ...state,
             ...newState,
-            moveHistory: [...state.moveHistory, { uci, san, fen: newState.fen! }]
+            moveHistory: newHistory,
+            viewIndex: newHistory.length - 1
           };
         }
         return state;
@@ -102,12 +110,12 @@ function createGameStore() {
 
     undo() {
       update(state => {
-        if (!state.game || state.moveHistory.length === 0) return state;
+        if (!state.game || state.viewIndex < 0) return state;
 
-        const newHistory = state.moveHistory.slice(0, -1);
-        const fenToLoad = newHistory.length > 0
-          ? newHistory[newHistory.length - 1]!.fen
-          : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+        const newIndex = state.viewIndex - 1;
+        const fenToLoad = newIndex >= 0
+          ? state.moveHistory[newIndex]!.fen
+          : STARTING_FEN;
 
         const newGame = loadFen(fenToLoad);
         if (!newGame) return state;
@@ -116,7 +124,47 @@ function createGameStore() {
           ...state,
           game: newGame,
           ...refreshState(newGame),
-          moveHistory: newHistory
+          viewIndex: newIndex
+        };
+      });
+    },
+
+    redo() {
+      update(state => {
+        if (!state.game || state.viewIndex >= state.moveHistory.length - 1) return state;
+
+        const newIndex = state.viewIndex + 1;
+        const fenToLoad = state.moveHistory[newIndex]!.fen;
+
+        const newGame = loadFen(fenToLoad);
+        if (!newGame) return state;
+
+        return {
+          ...state,
+          game: newGame,
+          ...refreshState(newGame),
+          viewIndex: newIndex
+        };
+      });
+    },
+
+    goToMove(index: number) {
+      update(state => {
+        if (!state.game) return state;
+        if (index < -1 || index >= state.moveHistory.length) return state;
+
+        const fenToLoad = index >= 0
+          ? state.moveHistory[index]!.fen
+          : STARTING_FEN;
+
+        const newGame = loadFen(fenToLoad);
+        if (!newGame) return state;
+
+        return {
+          ...state,
+          game: newGame,
+          ...refreshState(newGame),
+          viewIndex: index
         };
       });
     },
@@ -153,3 +201,4 @@ export const legalMoves: Readable<Move[]> = derived(gameStore, $game => $game.le
 export const sideToMove: Readable<'white' | 'black'> = derived(gameStore, $game => $game.sideToMove);
 export const isCheck: Readable<boolean> = derived(gameStore, $game => $game.isCheck);
 export const isGameOver: Readable<boolean> = derived(gameStore, $game => $game.isGameOver);
+export const viewIndex: Readable<number> = derived(gameStore, $game => $game.viewIndex);
