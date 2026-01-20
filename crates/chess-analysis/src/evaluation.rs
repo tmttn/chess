@@ -233,7 +233,10 @@ mod tests {
     #[test]
     fn test_flip() {
         assert_eq!(Evaluation::Centipawn(50).flip(), Evaluation::Centipawn(-50));
-        assert_eq!(Evaluation::Centipawn(-100).flip(), Evaluation::Centipawn(100));
+        assert_eq!(
+            Evaluation::Centipawn(-100).flip(),
+            Evaluation::Centipawn(100)
+        );
         assert_eq!(Evaluation::Mate(3).flip(), Evaluation::Mate(-3));
         assert_eq!(Evaluation::Mate(-5).flip(), Evaluation::Mate(5));
     }
