@@ -13,12 +13,11 @@
     k: 'K', q: 'Q', r: 'R', b: 'B', n: 'N', p: 'P'
   };
 
-  const pieceName = $derived(() => {
-    const colorPrefix = piece.color === 'white' ? 'w' : 'b';
-    return `${colorPrefix}${pieceMap[piece.type]}`;
-  });
+  const pieceName = $derived(
+    (piece.color === 'white' ? 'w' : 'b') + pieceMap[piece.type]
+  );
 
-  const src = $derived(`https://lichess1.org/assets/piece/${PIECE_SET}/${pieceName()}.svg`);
+  const src = $derived(`https://lichess1.org/assets/piece/${PIECE_SET}/${pieceName}.svg`);
 </script>
 
 <img {src} alt={`${piece.color} ${piece.type}`} class="piece" class:draggable draggable="false" />

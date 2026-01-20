@@ -21,7 +21,7 @@
 
 <div class="square" class:light={isLight} class:dark={!isLight} class:selected={isSelected} class:legal-target={isLegalTarget} class:last-move={isLastMove} class:check={isCheck} data-square={square} role="button" tabindex="0" {onclick} onkeydown={(e) => e.key === 'Enter' && onclick()} {ondragover} {ondrop}>
   {#if piece}
-    <div class="piece-wrapper" draggable="true" role="button" tabindex="0" {ondragstart}>
+    <div class="piece-wrapper" draggable="true" {ondragstart}>
       <Piece {piece} />
     </div>
   {/if}

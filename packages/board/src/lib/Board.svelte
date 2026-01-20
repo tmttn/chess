@@ -100,26 +100,26 @@
 
   function handleDragStart(e: DragEvent, square: string) {
     const piece = board.get(square);
-    if (!piece || piece.color !== sideToMove) {
+    if (!piece || piece.color !== sideToMove || !e.dataTransfer) {
       e.preventDefault();
       return;
     }
     selectedSquare = square;
-    e.dataTransfer!.effectAllowed = 'move';
-    e.dataTransfer!.setData('text/plain', square);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', square);
 
     // Create custom drag image (just the piece, no yellow background)
     const img = (e.target as HTMLElement).querySelector('img');
     if (img) {
       const size = img.offsetWidth;
-      e.dataTransfer!.setDragImage(img, size / 2, size / 2);
+      e.dataTransfer.setDragImage(img, size / 2, size / 2);
     }
   }
 
   function handleDragOver(e: DragEvent, square: string) {
-    if (selectedSquare && isLegalTarget(square)) {
+    if (selectedSquare && isLegalTarget(square) && e.dataTransfer) {
       e.preventDefault();
-      e.dataTransfer!.dropEffect = 'move';
+      e.dataTransfer.dropEffect = 'move';
     }
   }
 
