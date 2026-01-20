@@ -143,6 +143,11 @@ impl GameRunner {
     ///
     /// Returns an error if an engine produces an invalid move or if
     /// UCI communication fails.
+    ///
+    /// # Testing
+    ///
+    /// Integration tests for this method require real UCI engines (e.g., Stockfish).
+    /// Unit tests cover the supporting types ([`MoveRecord`], [`GameResult`], [`MatchResult`]).
     pub fn play_game(&mut self) -> Result<GameResult, GameError> {
         let mut game = Game::new();
         let mut moves: Vec<MoveRecord> = Vec::new();
@@ -283,5 +288,171 @@ mod tests {
         assert!(json.contains("\"uci\":\"g1f3\""));
         assert!(json.contains("\"depth\":10"));
         assert!(json.contains("\"score_cp\":-15"));
+    }
+
+    // Additional tests for MoveRecord
+
+    #[test]
+    fn test_move_record_creation_without_search_info() {
+        let record = MoveRecord {
+            uci: "e2e4".to_string(),
+            search_info: None,
+        };
+        assert_eq!(record.uci, "e2e4");
+        assert!(record.search_info.is_none());
+    }
+
+    #[test]
+    fn test_move_record_clone() {
+        let record = MoveRecord {
+            uci: "d2d4".to_string(),
+            search_info: Some(SearchInfo {
+                depth: Some(15),
+                score_cp: Some(50),
+                score_mate: None,
+                nodes: Some(100000),
+                time_ms: Some(200),
+                pv: vec!["d2d4".to_string(), "d7d5".to_string()],
+            }),
+        };
+        let cloned = record.clone();
+        assert_eq!(cloned.uci, record.uci);
+        assert!(cloned.search_info.is_some());
+        assert_eq!(cloned.search_info.as_ref().unwrap().depth, Some(15));
+    }
+
+    #[test]
+    fn test_move_record_serialize_without_search_info() {
+        let record = MoveRecord {
+            uci: "a2a4".to_string(),
+            search_info: None,
+        };
+        let json = serde_json::to_string(&record).expect("Failed to serialize");
+        assert!(json.contains("\"uci\":\"a2a4\""));
+        assert!(json.contains("\"search_info\":null"));
+    }
+
+    // Additional tests for GameResult
+
+    #[test]
+    fn test_game_result_with_white_wins() {
+        let result = GameResult {
+            moves: vec![
+                MoveRecord {
+                    uci: "e2e4".to_string(),
+                    search_info: None,
+                },
+            ],
+            result: MatchResult::WhiteWins,
+            white_name: "Stockfish".to_string(),
+            black_name: "Komodo".to_string(),
+        };
+        assert_eq!(result.result, MatchResult::WhiteWins);
+        assert_eq!(result.white_name, "Stockfish");
+        assert_eq!(result.black_name, "Komodo");
+    }
+
+    #[test]
+    fn test_game_result_with_black_wins() {
+        let result = GameResult {
+            moves: vec![],
+            result: MatchResult::BlackWins,
+            white_name: "Engine1".to_string(),
+            black_name: "Engine2".to_string(),
+        };
+        assert_eq!(result.result, MatchResult::BlackWins);
+    }
+
+    #[test]
+    fn test_game_result_empty_moves() {
+        let result = GameResult {
+            moves: vec![],
+            result: MatchResult::Draw,
+            white_name: "A".to_string(),
+            black_name: "B".to_string(),
+        };
+        assert!(result.moves.is_empty());
+        assert_eq!(result.result, MatchResult::Draw);
+    }
+
+    #[test]
+    fn test_game_result_debug_format() {
+        let result = GameResult {
+            moves: vec![MoveRecord {
+                uci: "e2e4".to_string(),
+                search_info: None,
+            }],
+            result: MatchResult::Draw,
+            white_name: "W".to_string(),
+            black_name: "B".to_string(),
+        };
+        let debug = format!("{:?}", result);
+        assert!(debug.contains("GameResult"));
+        assert!(debug.contains("moves"));
+        assert!(debug.contains("Draw"));
+    }
+
+    // Additional tests for MatchResult
+
+    #[test]
+    fn test_match_result_copy() {
+        let result = MatchResult::WhiteWins;
+        let copied = result;
+        assert_eq!(result, copied);
+    }
+
+    #[test]
+    fn test_match_result_all_variants() {
+        let variants = [
+            MatchResult::WhiteWins,
+            MatchResult::BlackWins,
+            MatchResult::Draw,
+        ];
+        
+        // Each variant should be equal to itself
+        for v in &variants {
+            assert_eq!(*v, *v);
+        }
+        
+        // All variants should be different from each other
+        assert_ne!(variants[0], variants[1]);
+        assert_ne!(variants[1], variants[2]);
+        assert_ne!(variants[0], variants[2]);
+    }
+
+    #[test]
+    fn test_game_error_uci_variant() {
+        use crate::uci_client::UciError;
+        let uci_err = UciError::SpawnError(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "engine not found",
+        ));
+        let game_err = GameError::Uci(uci_err);
+        assert!(game_err.to_string().contains("UCI error"));
+    }
+
+    #[test]
+    fn test_game_error_invalid_move_variant() {
+        let err = GameError::InvalidMove("x9x9".to_string());
+        assert_eq!(err.to_string(), "Invalid move: x9x9");
+    }
+
+    #[test]
+    fn test_game_error_from_uci_error() {
+        use crate::uci_client::UciError;
+        let uci_err = UciError::NotReady;
+        let game_err: GameError = uci_err.into();
+        match game_err {
+            GameError::Uci(_) => {}
+            _ => panic!("Expected Uci variant"),
+        }
+    }
+
+    #[test]
+    fn test_game_error_debug_format() {
+        let err = GameError::InvalidMove("invalid".to_string());
+        let debug = format!("{:?}", err);
+        assert!(debug.contains("InvalidMove"));
+        assert!(debug.contains("invalid"));
     }
 }

@@ -154,10 +154,12 @@ pub enum UciError {
     /// Failed to spawn the engine process or perform I/O operations.
     #[error("Failed to spawn process: {0}")]
     SpawnError(#[from] std::io::Error),
-    /// The engine process is not ready to receive commands.
+    /// Reserved for future UCI protocol validation
+    #[allow(dead_code)]
     #[error("Process not ready")]
     NotReady,
-    /// The engine returned an invalid or unexpected response.
+    /// Reserved for future UCI protocol validation
+    #[allow(dead_code)]
     #[error("Invalid response: {0}")]
     InvalidResponse(String),
 }
@@ -398,10 +400,9 @@ impl UciClient {
         }
     }
 
-    /// Gracefully shuts down the UCI engine.
+    /// Sends quit command and waits for process to exit.
     ///
-    /// Sends the `quit` command and waits for the process to exit.
-    /// This is the preferred way to terminate the engine.
+    /// Reserved for explicit graceful shutdown (Drop handles cleanup automatically).
     ///
     /// # Errors
     ///
@@ -411,6 +412,7 @@ impl UciClient {
     ///
     /// If this method is not called, the [`Drop`] implementation will
     /// attempt to terminate the engine, but may use forced termination.
+    #[allow(dead_code)]
     pub fn quit(&mut self) -> Result<(), UciError> {
         self.send("quit")?;
         let _ = self.process.wait();
@@ -593,5 +595,115 @@ mod tests {
         assert_eq!(cloned.depth, info.depth);
         assert_eq!(cloned.score_cp, info.score_cp);
         assert_eq!(cloned.pv, info.pv);
+    }
+
+    // Additional edge case tests for SearchInfo::parse
+
+    #[test]
+    fn test_search_info_parse_depth_only() {
+        let line = "info depth 5";
+        let info = SearchInfo::parse(line);
+        assert!(info.is_some());
+        let info = info.unwrap();
+        assert_eq!(info.depth, Some(5));
+        assert_eq!(info.score_cp, None);
+        assert_eq!(info.nodes, None);
+        assert!(info.pv.is_empty());
+    }
+
+    #[test]
+    fn test_search_info_parse_large_values() {
+        let line = "info depth 99 score cp 99999 nodes 9999999999999 time 999999";
+        let info = SearchInfo::parse(line);
+        assert!(info.is_some());
+        let info = info.unwrap();
+        assert_eq!(info.depth, Some(99));
+        assert_eq!(info.score_cp, Some(99999));
+        assert_eq!(info.nodes, Some(9999999999999));
+        assert_eq!(info.time_ms, Some(999999));
+    }
+
+    #[test]
+    fn test_search_info_parse_out_of_order() {
+        // UCI engines may send info fields in any order
+        let line = "info nodes 1000 depth 10 time 50 score cp 20";
+        let info = SearchInfo::parse(line);
+        assert!(info.is_some());
+        let info = info.unwrap();
+        assert_eq!(info.depth, Some(10));
+        assert_eq!(info.score_cp, Some(20));
+        assert_eq!(info.nodes, Some(1000));
+        assert_eq!(info.time_ms, Some(50));
+    }
+
+    #[test]
+    fn test_search_info_parse_with_extra_fields() {
+        // Real engines send additional fields we don't parse
+        let line = "info depth 15 seldepth 20 multipv 1 score cp 30 upperbound nodes 5000 nps 100000 hashfull 500 tbhits 0 time 50 pv e2e4";
+        let info = SearchInfo::parse(line);
+        assert!(info.is_some());
+        let info = info.unwrap();
+        assert_eq!(info.depth, Some(15));
+        assert_eq!(info.score_cp, Some(30));
+        assert_eq!(info.nodes, Some(5000));
+        assert_eq!(info.time_ms, Some(50));
+        assert_eq!(info.pv, vec!["e2e4"]);
+    }
+
+    #[test]
+    fn test_search_info_parse_malformed_values() {
+        // Invalid numeric values should be handled gracefully
+        let line = "info depth abc score cp xyz";
+        let info = SearchInfo::parse(line);
+        // No valid depth parsed, should return None
+        assert!(info.is_none());
+    }
+
+    #[test]
+    fn test_search_info_parse_empty_info_line() {
+        let line = "info ";
+        let info = SearchInfo::parse(line);
+        // No depth, should return None
+        assert!(info.is_none());
+    }
+
+    #[test]
+    fn test_search_info_parse_long_pv() {
+        let line = "info depth 20 score cp 0 pv e2e4 e7e5 g1f3 b8c6 f1b5 a7a6 b5a4 g8f6 e1g1 f8e7";
+        let info = SearchInfo::parse(line);
+        assert!(info.is_some());
+        let info = info.unwrap();
+        assert_eq!(info.pv.len(), 10);
+        assert_eq!(info.pv[0], "e2e4");
+        assert_eq!(info.pv[9], "f8e7");
+    }
+
+    // Tests for error variants
+
+    #[test]
+    fn test_uci_error_not_ready_exists() {
+        let error = UciError::NotReady;
+        assert_eq!(error.to_string(), "Process not ready");
+    }
+
+    #[test]
+    fn test_uci_error_invalid_response_exists() {
+        let error = UciError::InvalidResponse("unexpected EOF".to_string());
+        assert_eq!(error.to_string(), "Invalid response: unexpected EOF");
+    }
+
+    #[test]
+    fn test_uci_error_variants_are_distinct() {
+        let spawn_err = UciError::SpawnError(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "not found",
+        ));
+        let not_ready = UciError::NotReady;
+        let invalid = UciError::InvalidResponse("test".to_string());
+
+        // Each variant should have a distinct error message
+        assert!(spawn_err.to_string().contains("Failed to spawn"));
+        assert!(not_ready.to_string().contains("not ready"));
+        assert!(invalid.to_string().contains("Invalid response"));
     }
 }
