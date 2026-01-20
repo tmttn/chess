@@ -1,4 +1,5 @@
 mod config;
+mod uci_client;
 
 use clap::{Parser, Subcommand};
 use config::ArenaConfig;
