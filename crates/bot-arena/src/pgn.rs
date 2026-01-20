@@ -61,6 +61,7 @@ pub fn write_pgn<P: AsRef<Path>>(path: P, result: &GameResult) -> std::io::Resul
     writeln!(file, "[Event \"Bot Arena Match\"]")?;
     writeln!(file, "[Site \"local\"]")?;
     writeln!(file, "[Date \"{}\"]", Utc::now().format("%Y.%m.%d"))?;
+    writeln!(file, "[Round \"-\"]")?;
     writeln!(file, "[White \"{}\"]", result.white_name)?;
     writeln!(file, "[Black \"{}\"]", result.black_name)?;
     writeln!(file, "[Result \"{}\"]", result_str)?;
@@ -77,10 +78,20 @@ pub fn write_pgn<P: AsRef<Path>>(path: P, result: &GameResult) -> std::io::Resul
     }
     move_text.push_str(result_str);
 
-    // Wrap at 80 chars
-    for chunk in move_text.as_bytes().chunks(80) {
-        file.write_all(chunk)?;
-        writeln!(file)?;
+    // Wrap at 80 chars at word boundaries
+    let mut line = String::new();
+    for word in move_text.split_whitespace() {
+        if !line.is_empty() && line.len() + 1 + word.len() > 80 {
+            writeln!(file, "{}", line)?;
+            line.clear();
+        }
+        if !line.is_empty() {
+            line.push(' ');
+        }
+        line.push_str(word);
+    }
+    if !line.is_empty() {
+        writeln!(file, "{}", line)?;
     }
 
     Ok(())
@@ -137,6 +148,10 @@ mod tests {
         );
         assert!(contents.contains("[Date \""), "Should contain Date header");
         assert!(
+            contents.contains("[Round \"-\"]"),
+            "Should contain Round header"
+        );
+        assert!(
             contents.contains("[White \"TestEngineWhite\"]"),
             "Should contain White header"
         );
@@ -187,6 +202,88 @@ mod tests {
             contents.contains("3. f1b5"),
             "Should contain move 3 with correct numbering"
         );
+
+        // Verify word-boundary wrapping doesn't split tokens
+        for line in contents.lines() {
+            // Skip header lines
+            if line.starts_with('[') || line.is_empty() {
+                continue;
+            }
+            // Verify no line exceeds 80 chars (except if a single word is longer)
+            assert!(
+                line.len() <= 80 || !line.contains(' '),
+                "Line should not exceed 80 chars: {} (len: {})",
+                line,
+                line.len()
+            );
+        }
+
+        // Cleanup
+        fs::remove_file(&pgn_path).ok();
+    }
+
+    #[test]
+    fn test_write_pgn_wraps_long_lines() {
+        let temp_dir = std::env::temp_dir();
+        let pgn_path = temp_dir.join("test_long_game.pgn");
+
+        // Create a game with many moves to trigger line wrapping
+        let moves: Vec<String> = (0..100)
+            .map(|i| {
+                if i % 2 == 0 {
+                    format!("e{}e{}", (i % 8) + 1, (i % 8) + 2)
+                } else {
+                    format!("d{}d{}", (i % 8) + 1, (i % 8) + 2)
+                }
+            })
+            .collect();
+
+        let result = GameResult {
+            moves,
+            result: MatchResult::Draw,
+            white_name: "LongGameWhite".to_string(),
+            black_name: "LongGameBlack".to_string(),
+        };
+        write_pgn(&pgn_path, &result).expect("Failed to write PGN file");
+
+        // Read contents
+        let mut contents = String::new();
+        fs::File::open(&pgn_path)
+            .expect("Failed to open PGN file")
+            .read_to_string(&mut contents)
+            .expect("Failed to read PGN file");
+
+        // Verify no line exceeds 80 chars
+        for line in contents.lines() {
+            assert!(
+                line.len() <= 80,
+                "Line exceeds 80 chars: {} (len: {})",
+                line,
+                line.len()
+            );
+        }
+
+        // Verify that moves are not split mid-token
+        // The draw result "1/2-1/2" should be on a single line, not split
+        assert!(
+            contents.contains("1/2-1/2"),
+            "Draw result should not be split across lines"
+        );
+
+        // Verify tokens are not split mid-word (e.g., "1/2-1/2" should not become "1/2-1" and "/2")
+        // Note: Move numbers like "7." ending a line is acceptable as they are complete tokens
+        for line in contents.lines() {
+            if line.starts_with('[') || line.is_empty() {
+                continue;
+            }
+            // Check that no partial results appear (would indicate mid-token split)
+            // A properly formatted line should not have partial fractions
+            assert!(
+                !line.contains("1/2-1\n") && !line.ends_with("1/2-1"),
+                "Line should not contain split draw result: {}",
+                line
+            );
+        }
 
         // Cleanup
         fs::remove_file(&pgn_path).ok();

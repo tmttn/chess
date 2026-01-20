@@ -102,7 +102,9 @@ fn main() {
                         // Save PGN file
                         let date = chrono::Utc::now().format("%Y-%m-%d").to_string();
                         let pgn_dir = format!("data/games/{}", date);
-                        std::fs::create_dir_all(&pgn_dir).ok();
+                        if let Err(e) = std::fs::create_dir_all(&pgn_dir) {
+                            eprintln!("Warning: Failed to create PGN directory {}: {}", pgn_dir, e);
+                        }
                         let pgn_path = format!("{}/{}.pgn", pgn_dir, game_id);
                         if let Err(e) = pgn::write_pgn(&pgn_path, &result) {
                             eprintln!("Warning: Failed to save PGN file: {}", e);
