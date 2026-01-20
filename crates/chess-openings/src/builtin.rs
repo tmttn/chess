@@ -3,7 +3,7 @@
 //! This module provides access to the built-in opening database
 //! that is compiled into the library.
 
-use crate::database::OpeningDatabase;
+use crate::database::MoveDatabase;
 use crate::opening::OpeningMove;
 
 /// Creates the built-in opening database with common chess openings.
@@ -11,8 +11,8 @@ use crate::opening::OpeningMove;
 /// This database includes popular openings and their main lines,
 /// weighted by frequency of play at master level.
 #[must_use]
-pub fn builtin_database() -> OpeningDatabase {
-    let mut db = OpeningDatabase::new();
+pub fn builtin_database() -> MoveDatabase {
+    let mut db = MoveDatabase::new();
 
     // Starting position - most common first moves
     db.add_position(
