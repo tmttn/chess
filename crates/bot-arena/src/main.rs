@@ -1,5 +1,6 @@
 mod config;
 mod game_runner;
+mod pgn;
 mod storage;
 mod uci_client;
 
@@ -94,8 +95,17 @@ fn main() {
                         }
 
                         // Save game to database
-                        if let Err(e) = storage.save_game(&result) {
-                            eprintln!("Warning: Failed to save game to database: {}", e);
+                        let game_id = storage
+                            .save_game(&result)
+                            .unwrap_or_else(|_| uuid::Uuid::new_v4().to_string());
+
+                        // Save PGN file
+                        let date = chrono::Utc::now().format("%Y-%m-%d").to_string();
+                        let pgn_dir = format!("data/games/{}", date);
+                        std::fs::create_dir_all(&pgn_dir).ok();
+                        let pgn_path = format!("{}/{}.pgn", pgn_dir, game_id);
+                        if let Err(e) = pgn::write_pgn(&pgn_path, &result) {
+                            eprintln!("Warning: Failed to save PGN file: {}", e);
                         }
 
                         println!(
