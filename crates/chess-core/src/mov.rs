@@ -264,14 +264,38 @@ mod tests {
 
     #[test]
     fn move_from_uci_all_promotions() {
-        assert_eq!(Move::from_uci("e7e8n").unwrap().flag(), MoveFlag::PromoteKnight);
-        assert_eq!(Move::from_uci("e7e8N").unwrap().flag(), MoveFlag::PromoteKnight);
-        assert_eq!(Move::from_uci("e7e8b").unwrap().flag(), MoveFlag::PromoteBishop);
-        assert_eq!(Move::from_uci("e7e8B").unwrap().flag(), MoveFlag::PromoteBishop);
-        assert_eq!(Move::from_uci("e7e8r").unwrap().flag(), MoveFlag::PromoteRook);
-        assert_eq!(Move::from_uci("e7e8R").unwrap().flag(), MoveFlag::PromoteRook);
-        assert_eq!(Move::from_uci("e7e8q").unwrap().flag(), MoveFlag::PromoteQueen);
-        assert_eq!(Move::from_uci("e7e8Q").unwrap().flag(), MoveFlag::PromoteQueen);
+        assert_eq!(
+            Move::from_uci("e7e8n").unwrap().flag(),
+            MoveFlag::PromoteKnight
+        );
+        assert_eq!(
+            Move::from_uci("e7e8N").unwrap().flag(),
+            MoveFlag::PromoteKnight
+        );
+        assert_eq!(
+            Move::from_uci("e7e8b").unwrap().flag(),
+            MoveFlag::PromoteBishop
+        );
+        assert_eq!(
+            Move::from_uci("e7e8B").unwrap().flag(),
+            MoveFlag::PromoteBishop
+        );
+        assert_eq!(
+            Move::from_uci("e7e8r").unwrap().flag(),
+            MoveFlag::PromoteRook
+        );
+        assert_eq!(
+            Move::from_uci("e7e8R").unwrap().flag(),
+            MoveFlag::PromoteRook
+        );
+        assert_eq!(
+            Move::from_uci("e7e8q").unwrap().flag(),
+            MoveFlag::PromoteQueen
+        );
+        assert_eq!(
+            Move::from_uci("e7e8Q").unwrap().flag(),
+            MoveFlag::PromoteQueen
+        );
         // Invalid promotion character
         assert!(Move::from_uci("e7e8x").is_none());
     }
