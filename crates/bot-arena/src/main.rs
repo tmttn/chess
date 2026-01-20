@@ -6,6 +6,7 @@ mod storage;
 mod uci_client;
 
 use chess_analysis::{AnalysisConfig, GameAnalysis, GameAnalyzer, MoveInput};
+use chess_openings::{builtin::builtin_openings, OpeningDatabase};
 use clap::{Parser, Subcommand};
 use config::ArenaConfig;
 use game_runner::{GameRunner, MatchResult};
@@ -35,6 +36,9 @@ enum Commands {
         /// Preset configuration to use
         #[arg(short, long)]
         preset: Option<String>,
+        /// Opening ID to use (e.g., "italian-game", "sicilian-najdorf")
+        #[arg(short, long)]
+        opening: Option<String>,
     },
     /// Analyze a game with Stockfish
     Analyze {
@@ -50,6 +54,18 @@ enum Commands {
         /// Number of opening book moves to skip
         #[arg(long, default_value = "0")]
         book_moves: usize,
+    },
+    /// List and search chess openings
+    Openings {
+        /// Search openings by name (case-insensitive)
+        #[arg(short, long)]
+        search: Option<String>,
+        /// Filter by ECO code prefix (e.g., "C" for Open Games, "B90" for Sicilian Najdorf)
+        #[arg(short, long)]
+        eco: Option<String>,
+        /// Filter by tag (e.g., "gambit", "open-game")
+        #[arg(short, long)]
+        tag: Option<String>,
     },
 }
 
@@ -67,6 +83,7 @@ fn main() {
             black,
             games,
             preset,
+            opening,
         } => {
             let white_path = config
                 .get_bot(&white)
@@ -96,6 +113,28 @@ fn main() {
                 )
             };
 
+            // Look up opening if specified
+            let opening_moves: Vec<String> = if let Some(ref opening_id) = opening {
+                let db = OpeningDatabase::with_openings(builtin_openings());
+                match db.by_id(opening_id) {
+                    Some(op) => {
+                        println!(
+                            "Using opening: {} ({})",
+                            op.name,
+                            op.eco.as_deref().unwrap_or("N/A")
+                        );
+                        op.moves.clone()
+                    }
+                    None => {
+                        eprintln!("Error: Opening '{}' not found", opening_id);
+                        eprintln!("Use 'bot-arena openings' to list available openings");
+                        std::process::exit(1);
+                    }
+                }
+            } else {
+                Vec::new()
+            };
+
             // Ensure bots are registered in database
             storage
                 .ensure_bot(&white, Some(white_path.to_str().unwrap_or("")))
@@ -116,8 +155,13 @@ fn main() {
                 let black_client =
                     UciClient::spawn(&black_path).expect("Failed to spawn black engine");
 
-                let mut runner = GameRunner::new(white_client, black_client, time_control.clone())
-                    .expect("Failed to initialize game");
+                let mut runner = GameRunner::new(
+                    white_client,
+                    black_client,
+                    time_control.clone(),
+                    opening_moves.clone(),
+                )
+                .expect("Failed to initialize game");
 
                 match runner.play_game() {
                     Ok(mut result) => {
@@ -194,7 +238,49 @@ fn main() {
         } => {
             run_analyze(&config, &game_id, engine, depth, book_moves);
         }
+        Commands::Openings { search, eco, tag } => {
+            run_openings(search, eco, tag);
+        }
     }
+}
+
+/// Runs the openings command to list and search chess openings.
+fn run_openings(search: Option<String>, eco: Option<String>, tag: Option<String>) {
+    let db = OpeningDatabase::with_openings(builtin_openings());
+
+    let openings: Vec<_> = if let Some(ref query) = search {
+        db.search(query)
+    } else if let Some(ref eco_prefix) = eco {
+        db.by_eco(eco_prefix)
+    } else if let Some(ref tag_name) = tag {
+        db.by_tag(tag_name)
+    } else {
+        db.all().iter().collect()
+    };
+
+    if openings.is_empty() {
+        println!("No openings found.");
+        return;
+    }
+
+    println!("{:<25} {:<45} {:<6} MOVES", "ID", "NAME", "ECO");
+    println!("{}", "-".repeat(100));
+
+    for opening in &openings {
+        let eco = opening.eco.as_deref().unwrap_or("-");
+        let moves_str = opening.moves.join(" ");
+        let moves_display = if moves_str.len() > 25 {
+            format!("{}...", &moves_str[..22])
+        } else {
+            moves_str
+        };
+        println!(
+            "{:<25} {:<45} {:<6} {}",
+            opening.id, opening.name, eco, moves_display
+        );
+    }
+
+    println!("\nTotal: {} opening(s)", openings.len());
 }
 
 /// Structure for deserializing game JSON files.
@@ -418,11 +504,13 @@ mod tests {
                 black,
                 games,
                 preset,
+                opening,
             } => {
                 assert_eq!(white, "bot1");
                 assert_eq!(black, "bot2");
                 assert_eq!(games, 10); // default value
                 assert_eq!(preset, Some("quick".to_string()));
+                assert!(opening.is_none());
             }
             _ => panic!("Expected Match command"),
         }
@@ -440,11 +528,13 @@ mod tests {
                 black,
                 games,
                 preset,
+                opening,
             } => {
                 assert_eq!(white, "bot1");
                 assert_eq!(black, "bot2");
                 assert_eq!(games, 10);
                 assert!(preset.is_none());
+                assert!(opening.is_none());
             }
             _ => panic!("Expected Match command"),
         }
@@ -662,5 +752,181 @@ mod tests {
         // This should return None for a non-existent game
         let result = find_game_file("non-existent-game-id-12345");
         assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_cli_parses_openings_command_no_filters() {
+        let cli = Cli::try_parse_from(["bot-arena", "openings"]);
+        assert!(cli.is_ok());
+
+        let cli = cli.unwrap();
+        match cli.command {
+            Commands::Openings { search, eco, tag } => {
+                assert!(search.is_none());
+                assert!(eco.is_none());
+                assert!(tag.is_none());
+            }
+            _ => panic!("Expected Openings command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_openings_command_with_search() {
+        let cli = Cli::try_parse_from(["bot-arena", "openings", "--search", "sicilian"]);
+        assert!(cli.is_ok());
+
+        let cli = cli.unwrap();
+        match cli.command {
+            Commands::Openings { search, eco, tag } => {
+                assert_eq!(search, Some("sicilian".to_string()));
+                assert!(eco.is_none());
+                assert!(tag.is_none());
+            }
+            _ => panic!("Expected Openings command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_openings_command_with_eco() {
+        let cli = Cli::try_parse_from(["bot-arena", "openings", "--eco", "B90"]);
+        assert!(cli.is_ok());
+
+        let cli = cli.unwrap();
+        match cli.command {
+            Commands::Openings { search, eco, tag } => {
+                assert!(search.is_none());
+                assert_eq!(eco, Some("B90".to_string()));
+                assert!(tag.is_none());
+            }
+            _ => panic!("Expected Openings command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_openings_command_with_tag() {
+        let cli = Cli::try_parse_from(["bot-arena", "openings", "--tag", "gambit"]);
+        assert!(cli.is_ok());
+
+        let cli = cli.unwrap();
+        match cli.command {
+            Commands::Openings { search, eco, tag } => {
+                assert!(search.is_none());
+                assert!(eco.is_none());
+                assert_eq!(tag, Some("gambit".to_string()));
+            }
+            _ => panic!("Expected Openings command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_match_command_with_opening() {
+        let cli = Cli::try_parse_from([
+            "bot-arena",
+            "match",
+            "bot1",
+            "bot2",
+            "--opening",
+            "italian-game",
+        ]);
+        assert!(cli.is_ok());
+
+        let cli = cli.unwrap();
+        match cli.command {
+            Commands::Match { opening, .. } => {
+                assert_eq!(opening, Some("italian-game".to_string()));
+            }
+            _ => panic!("Expected Match command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_match_command_with_opening_short_form() {
+        let cli = Cli::try_parse_from([
+            "bot-arena",
+            "match",
+            "bot1",
+            "bot2",
+            "-o",
+            "sicilian-najdorf",
+        ]);
+        assert!(cli.is_ok());
+
+        let cli = cli.unwrap();
+        match cli.command {
+            Commands::Match { opening, .. } => {
+                assert_eq!(opening, Some("sicilian-najdorf".to_string()));
+            }
+            _ => panic!("Expected Match command"),
+        }
+    }
+
+    #[test]
+    fn test_run_openings_with_search() {
+        // Test that run_openings doesn't panic with valid search
+        // This tests the internal function but not the CLI integration
+        let db = OpeningDatabase::with_openings(builtin_openings());
+        let results = db.search("sicilian");
+        assert!(!results.is_empty());
+        assert!(results.iter().any(|o| o.id == "sicilian-najdorf"));
+    }
+
+    #[test]
+    fn test_run_openings_with_eco() {
+        let db = OpeningDatabase::with_openings(builtin_openings());
+        let results = db.by_eco("B90");
+        assert!(!results.is_empty());
+        assert!(results.iter().any(|o| o.id == "sicilian-najdorf"));
+    }
+
+    #[test]
+    fn test_run_openings_with_tag() {
+        let db = OpeningDatabase::with_openings(builtin_openings());
+        let results = db.by_tag("gambit");
+        assert!(!results.is_empty());
+        assert!(results.iter().any(|o| o.id == "kings-gambit"));
+    }
+
+    #[test]
+    fn test_opening_lookup_by_id() {
+        let db = OpeningDatabase::with_openings(builtin_openings());
+        let opening = db.by_id("italian-game");
+        assert!(opening.is_some());
+        let opening = opening.unwrap();
+        assert_eq!(opening.name, "Italian Game");
+        assert_eq!(opening.eco, Some("C50".to_string()));
+        assert_eq!(opening.moves, vec!["e2e4", "e7e5", "g1f3", "b8c6", "f1c4"]);
+    }
+
+    #[test]
+    fn test_opening_lookup_by_id_not_found() {
+        let db = OpeningDatabase::with_openings(builtin_openings());
+        let opening = db.by_id("nonexistent-opening");
+        assert!(opening.is_none());
+    }
+
+    #[test]
+    fn test_cli_openings_help_includes_options() {
+        let cmd = Cli::command();
+        let openings_cmd = cmd
+            .get_subcommands()
+            .find(|c| c.get_name() == "openings")
+            .expect("openings subcommand exists");
+        let help = openings_cmd.clone().render_help().to_string();
+
+        assert!(help.contains("search"));
+        assert!(help.contains("eco"));
+        assert!(help.contains("tag"));
+    }
+
+    #[test]
+    fn test_cli_match_help_includes_opening_option() {
+        let cmd = Cli::command();
+        let match_cmd = cmd
+            .get_subcommands()
+            .find(|c| c.get_name() == "match")
+            .expect("match subcommand exists");
+        let help = match_cmd.clone().render_help().to_string();
+
+        assert!(help.contains("opening") || help.contains("-o"));
     }
 }

@@ -89,7 +89,7 @@ pub enum MatchResult {
 /// ```ignore
 /// let white = UciClient::spawn("./white_engine")?;
 /// let black = UciClient::spawn("./black_engine")?;
-/// let mut runner = GameRunner::new(white, black, "movetime 500".to_string())?;
+/// let mut runner = GameRunner::new(white, black, "movetime 500".to_string(), vec![])?;
 /// let result = runner.play_game()?;
 /// println!("Game result: {:?}", result.result);
 /// ```
@@ -100,10 +100,12 @@ pub struct GameRunner {
     black: UciClient,
     /// The time control string to use for move requests.
     time_control: String,
+    /// Opening moves to play before the game starts (in UCI notation).
+    opening_moves: Vec<String>,
 }
 
 impl GameRunner {
-    /// Creates a new game runner with the given engines and time control.
+    /// Creates a new game runner with the given engines, time control, and optional opening moves.
     ///
     /// Initializes both UCI engines and prepares them for play.
     ///
@@ -112,6 +114,7 @@ impl GameRunner {
     /// * `white` - The UCI client for the white player
     /// * `black` - The UCI client for the black player
     /// * `time_control` - The time control string (e.g., "movetime 500")
+    /// * `opening_moves` - Optional opening moves to play at start (in UCI notation)
     ///
     /// # Errors
     ///
@@ -120,6 +123,7 @@ impl GameRunner {
         mut white: UciClient,
         mut black: UciClient,
         time_control: String,
+        opening_moves: Vec<String>,
     ) -> Result<Self, GameError> {
         white.init()?;
         black.init()?;
@@ -127,6 +131,7 @@ impl GameRunner {
             white,
             black,
             time_control,
+            opening_moves,
         })
     }
 
@@ -134,6 +139,8 @@ impl GameRunner {
     ///
     /// Executes the game loop, alternating moves between white and black
     /// until the game ends (checkmate, stalemate, draw, or error).
+    /// If opening moves were specified, they are played first before
+    /// engines start making their own moves.
     ///
     /// # Returns
     ///
@@ -153,6 +160,20 @@ impl GameRunner {
         let mut moves: Vec<MoveRecord> = Vec::new();
         let white_name = self.white.name.clone();
         let black_name = self.black.name.clone();
+
+        // Play opening moves first
+        for opening_move in &self.opening_moves {
+            if game.make_move_uci(opening_move).is_err() {
+                return Err(GameError::InvalidMove(format!(
+                    "Invalid opening move: {}",
+                    opening_move
+                )));
+            }
+            moves.push(MoveRecord {
+                uci: opening_move.clone(),
+                search_info: None,
+            });
+        }
 
         loop {
             if game.is_game_over() {
