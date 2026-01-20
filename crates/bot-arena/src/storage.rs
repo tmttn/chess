@@ -3,6 +3,8 @@
 //! This module provides persistent storage for game results, bot information,
 //! and performance statistics using SQLite as the backing database.
 
+#[cfg(test)]
+use crate::game_runner::MoveRecord;
 use crate::game_runner::{GameResult, MatchResult};
 use chrono::Utc;
 use rusqlite::{Connection, Result as SqliteResult};
@@ -125,6 +127,14 @@ impl Storage {
             MatchResult::Draw => "draw",
         };
 
+        // Extract UCI moves for storage
+        let moves_str = result
+            .moves
+            .iter()
+            .map(|m| m.uci.clone())
+            .collect::<Vec<_>>()
+            .join(" ");
+
         self.conn.execute(
             "INSERT INTO games (id, white_bot, black_bot, result, move_count, moves, created_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
@@ -134,7 +144,7 @@ impl Storage {
                 &result.black_name,
                 result_str,
                 result.moves.len() as i32,
-                result.moves.join(" "),
+                moves_str,
                 Utc::now().to_rfc3339(),
             ),
         )?;
@@ -326,7 +336,16 @@ mod tests {
 
         // Create a game result
         let result = GameResult {
-            moves: vec!["e2e4".to_string(), "e7e5".to_string()],
+            moves: vec![
+                MoveRecord {
+                    uci: "e2e4".to_string(),
+                    search_info: None,
+                },
+                MoveRecord {
+                    uci: "e7e5".to_string(),
+                    search_info: None,
+                },
+            ],
             result: MatchResult::WhiteWins,
             white_name: "engine_a".to_string(),
             black_name: "engine_b".to_string(),
@@ -353,7 +372,10 @@ mod tests {
 
         // Add another game - a draw
         let draw_result = GameResult {
-            moves: vec!["d2d4".to_string()],
+            moves: vec![MoveRecord {
+                uci: "d2d4".to_string(),
+                search_info: None,
+            }],
             result: MatchResult::Draw,
             white_name: "engine_a".to_string(),
             black_name: "engine_b".to_string(),

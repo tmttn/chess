@@ -7,7 +7,7 @@
 use chess_core::Color;
 use chess_engine::{Game, GameResult as EngineResult};
 
-use crate::uci_client::{UciClient, UciError};
+use crate::uci_client::{SearchInfo, UciClient, UciError};
 use thiserror::Error;
 
 /// Errors that can occur during game execution.
@@ -24,14 +24,42 @@ pub enum GameError {
     InvalidMove(String),
 }
 
+/// A single move with its associated search information.
+///
+/// This struct captures a move in UCI notation along with the optional
+/// search metrics reported by the engine when calculating the move.
+///
+/// # Example
+///
+/// ```
+/// use bot_arena::game_runner::MoveRecord;
+/// use bot_arena::uci_client::SearchInfo;
+///
+/// let record = MoveRecord {
+///     uci: "e2e4".to_string(),
+///     search_info: Some(SearchInfo {
+///         depth: Some(20),
+///         score_cp: Some(35),
+///         ..Default::default()
+///     }),
+/// };
+/// ```
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct MoveRecord {
+    /// The move in UCI notation (e.g., "e2e4", "g1f3").
+    pub uci: String,
+    /// Search information from the engine when calculating this move.
+    pub search_info: Option<SearchInfo>,
+}
+
 /// The result of a completed game, containing move history and outcome.
 ///
 /// This struct captures all relevant information about a finished game,
 /// including the sequence of moves played and the final result.
 #[derive(Debug, Clone)]
 pub struct GameResult {
-    /// The sequence of moves played in UCI notation.
-    pub moves: Vec<String>,
+    /// The sequence of moves played with their search information.
+    pub moves: Vec<MoveRecord>,
     /// The outcome of the game.
     pub result: MatchResult,
     /// The name of the engine playing white.
@@ -117,7 +145,7 @@ impl GameRunner {
     /// UCI communication fails.
     pub fn play_game(&mut self) -> Result<GameResult, GameError> {
         let mut game = Game::new();
-        let mut moves: Vec<String> = Vec::new();
+        let mut moves: Vec<MoveRecord> = Vec::new();
         let white_name = self.white.name.clone();
         let black_name = self.black.name.clone();
 
@@ -132,8 +160,10 @@ impl GameRunner {
                 &mut self.black
             };
 
-            current.set_position(&moves)?;
-            let bestmove = current.go(&self.time_control)?;
+            // Extract UCI moves for position command
+            let uci_moves: Vec<String> = moves.iter().map(|m| m.uci.clone()).collect();
+            current.set_position(&uci_moves)?;
+            let (bestmove, search_info) = current.go(&self.time_control)?;
 
             if bestmove.is_empty() || bestmove == "(none)" || bestmove == "0000" {
                 break;
@@ -143,7 +173,10 @@ impl GameRunner {
                 return Err(GameError::InvalidMove(bestmove));
             }
 
-            moves.push(bestmove);
+            moves.push(MoveRecord {
+                uci: bestmove,
+                search_info,
+            });
 
             // Safety limit to prevent infinite games
             if moves.len() > 500 {
@@ -189,15 +222,66 @@ mod tests {
     #[test]
     fn test_game_result_clone() {
         let result = GameResult {
-            moves: vec!["e2e4".to_string(), "e7e5".to_string()],
+            moves: vec![
+                MoveRecord {
+                    uci: "e2e4".to_string(),
+                    search_info: None,
+                },
+                MoveRecord {
+                    uci: "e7e5".to_string(),
+                    search_info: None,
+                },
+            ],
             result: MatchResult::Draw,
             white_name: "Engine A".to_string(),
             black_name: "Engine B".to_string(),
         };
         let cloned = result.clone();
-        assert_eq!(cloned.moves, result.moves);
+        assert_eq!(cloned.moves.len(), result.moves.len());
+        assert_eq!(cloned.moves[0].uci, result.moves[0].uci);
         assert_eq!(cloned.result, result.result);
         assert_eq!(cloned.white_name, result.white_name);
         assert_eq!(cloned.black_name, result.black_name);
+    }
+
+    #[test]
+    fn test_move_record_with_search_info() {
+        let record = MoveRecord {
+            uci: "e2e4".to_string(),
+            search_info: Some(SearchInfo {
+                depth: Some(20),
+                score_cp: Some(35),
+                score_mate: None,
+                nodes: Some(1234567),
+                time_ms: Some(1500),
+                pv: vec!["e2e4".to_string(), "e7e5".to_string()],
+            }),
+        };
+
+        assert_eq!(record.uci, "e2e4");
+        assert!(record.search_info.is_some());
+        let info = record.search_info.unwrap();
+        assert_eq!(info.depth, Some(20));
+        assert_eq!(info.score_cp, Some(35));
+    }
+
+    #[test]
+    fn test_move_record_serialize() {
+        let record = MoveRecord {
+            uci: "g1f3".to_string(),
+            search_info: Some(SearchInfo {
+                depth: Some(10),
+                score_cp: Some(-15),
+                score_mate: None,
+                nodes: None,
+                time_ms: None,
+                pv: vec![],
+            }),
+        };
+
+        let json = serde_json::to_string(&record).expect("Failed to serialize");
+        assert!(json.contains("\"uci\":\"g1f3\""));
+        assert!(json.contains("\"depth\":10"));
+        assert!(json.contains("\"score_cp\":-15"));
     }
 }

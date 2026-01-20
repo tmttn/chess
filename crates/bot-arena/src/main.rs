@@ -1,5 +1,6 @@
 mod config;
 mod game_runner;
+mod json_output;
 mod pgn;
 mod storage;
 mod uci_client;
@@ -108,6 +109,12 @@ fn main() {
                         let pgn_path = format!("{}/{}.pgn", pgn_dir, game_id);
                         if let Err(e) = pgn::write_pgn(&pgn_path, &result) {
                             eprintln!("Warning: Failed to save PGN file: {}", e);
+                        }
+
+                        // Save JSON file with search info
+                        let json_path = format!("{}/{}.json", pgn_dir, game_id);
+                        if let Err(e) = json_output::write_json(&json_path, &game_id, &result) {
+                            eprintln!("Warning: Failed to write JSON: {}", e);
                         }
 
                         println!(

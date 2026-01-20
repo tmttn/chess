@@ -3,6 +3,8 @@
 //! This module provides functionality to export completed games to the standard
 //! PGN format, which can be read by most chess software and databases.
 
+#[cfg(test)]
+use crate::game_runner::MoveRecord;
 use crate::game_runner::{GameResult, MatchResult};
 use chrono::Utc;
 use std::io::Write;
@@ -69,11 +71,11 @@ pub fn write_pgn<P: AsRef<Path>>(path: P, result: &GameResult) -> std::io::Resul
 
     // Write moves in PGN format (UCI for now, SAN conversion later)
     let mut move_text = String::new();
-    for (i, mv) in result.moves.iter().enumerate() {
+    for (i, record) in result.moves.iter().enumerate() {
         if i % 2 == 0 {
             move_text.push_str(&format!("{}. ", i / 2 + 1));
         }
-        move_text.push_str(mv);
+        move_text.push_str(&record.uci);
         move_text.push(' ');
     }
     move_text.push_str(result_str);
@@ -107,11 +109,26 @@ mod tests {
     fn create_test_result() -> GameResult {
         GameResult {
             moves: vec![
-                "e2e4".to_string(),
-                "e7e5".to_string(),
-                "g1f3".to_string(),
-                "b8c6".to_string(),
-                "f1b5".to_string(),
+                MoveRecord {
+                    uci: "e2e4".to_string(),
+                    search_info: None,
+                },
+                MoveRecord {
+                    uci: "e7e5".to_string(),
+                    search_info: None,
+                },
+                MoveRecord {
+                    uci: "g1f3".to_string(),
+                    search_info: None,
+                },
+                MoveRecord {
+                    uci: "b8c6".to_string(),
+                    search_info: None,
+                },
+                MoveRecord {
+                    uci: "f1b5".to_string(),
+                    search_info: None,
+                },
             ],
             result: MatchResult::WhiteWins,
             white_name: "TestEngineWhite".to_string(),
@@ -228,12 +245,16 @@ mod tests {
         let pgn_path = temp_dir.join("test_long_game.pgn");
 
         // Create a game with many moves to trigger line wrapping
-        let moves: Vec<String> = (0..100)
+        let moves: Vec<MoveRecord> = (0..100)
             .map(|i| {
-                if i % 2 == 0 {
+                let uci = if i % 2 == 0 {
                     format!("e{}e{}", (i % 8) + 1, (i % 8) + 2)
                 } else {
                     format!("d{}d{}", (i % 8) + 1, (i % 8) + 2)
+                };
+                MoveRecord {
+                    uci,
+                    search_info: None,
                 }
             })
             .collect();
@@ -295,7 +316,16 @@ mod tests {
         let pgn_path = temp_dir.join("test_black_wins.pgn");
 
         let result = GameResult {
-            moves: vec!["e2e4".to_string(), "e7e5".to_string()],
+            moves: vec![
+                MoveRecord {
+                    uci: "e2e4".to_string(),
+                    search_info: None,
+                },
+                MoveRecord {
+                    uci: "e7e5".to_string(),
+                    search_info: None,
+                },
+            ],
             result: MatchResult::BlackWins,
             white_name: "White".to_string(),
             black_name: "Black".to_string(),
@@ -326,7 +356,10 @@ mod tests {
         let pgn_path = temp_dir.join("test_draw.pgn");
 
         let result = GameResult {
-            moves: vec!["e2e4".to_string()],
+            moves: vec![MoveRecord {
+                uci: "e2e4".to_string(),
+                search_info: None,
+            }],
             result: MatchResult::Draw,
             white_name: "White".to_string(),
             black_name: "Black".to_string(),

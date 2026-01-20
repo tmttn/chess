@@ -12,8 +12,11 @@
 //! let mut client = UciClient::spawn("/path/to/engine").unwrap();
 //! client.init().unwrap();
 //! client.set_position(&[]).unwrap();
-//! let best_move = client.go("movetime 1000").unwrap();
+//! let (best_move, search_info) = client.go("movetime 1000").unwrap();
 //! println!("Best move: {}", best_move);
+//! if let Some(info) = search_info {
+//!     println!("Search depth: {:?}", info.depth);
+//! }
 //! client.quit().unwrap();
 //! ```
 
@@ -21,6 +24,126 @@ use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 use thiserror::Error;
+
+/// Information extracted from UCI `info` lines during engine search.
+///
+/// This struct captures key search metrics that UCI engines report while
+/// calculating moves, including depth, score, nodes searched, and the
+/// principal variation (PV).
+///
+/// # Example
+///
+/// ```
+/// use bot_arena::uci_client::SearchInfo;
+///
+/// let info = SearchInfo::parse("info depth 20 score cp 35 nodes 1234567 time 1500 pv e2e4 e7e5");
+/// assert!(info.is_some());
+/// let info = info.unwrap();
+/// assert_eq!(info.depth, Some(20));
+/// assert_eq!(info.score_cp, Some(35));
+/// ```
+#[derive(Debug, Clone, Default, serde::Serialize)]
+pub struct SearchInfo {
+    /// The search depth reached (in plies).
+    pub depth: Option<u32>,
+    /// The score in centipawns (100 = 1 pawn advantage).
+    pub score_cp: Option<i32>,
+    /// Mate score: positive means mate in N moves, negative means getting mated.
+    pub score_mate: Option<i32>,
+    /// Number of nodes searched.
+    pub nodes: Option<u64>,
+    /// Time spent searching in milliseconds.
+    pub time_ms: Option<u64>,
+    /// Principal variation - the expected best line of play.
+    pub pv: Vec<String>,
+}
+
+impl SearchInfo {
+    /// Parses a UCI `info` line into a `SearchInfo` struct.
+    ///
+    /// Returns `None` if the line doesn't start with "info " or doesn't
+    /// contain depth information (which indicates it's not a substantive
+    /// search info line).
+    ///
+    /// # Arguments
+    ///
+    /// * `line` - A UCI info line from the engine.
+    ///
+    /// # Returns
+    ///
+    /// `Some(SearchInfo)` if the line is a valid info line with depth,
+    /// `None` otherwise.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use bot_arena::uci_client::SearchInfo;
+    ///
+    /// // Basic info line
+    /// let info = SearchInfo::parse("info depth 10 score cp 25 nodes 50000 time 100 pv e2e4 e7e5");
+    /// assert!(info.is_some());
+    ///
+    /// // Mate score
+    /// let mate_info = SearchInfo::parse("info depth 15 score mate 3 pv e2e4");
+    /// assert!(mate_info.is_some());
+    /// assert_eq!(mate_info.unwrap().score_mate, Some(3));
+    ///
+    /// // Non-info line returns None
+    /// assert!(SearchInfo::parse("bestmove e2e4").is_none());
+    /// ```
+    pub fn parse(line: &str) -> Option<Self> {
+        if !line.starts_with("info ") {
+            return None;
+        }
+
+        let mut info = SearchInfo::default();
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        let mut i = 1;
+
+        while i < parts.len() {
+            match parts[i] {
+                "depth" => {
+                    i += 1;
+                    info.depth = parts.get(i).and_then(|s| s.parse().ok());
+                }
+                "score" => {
+                    i += 1;
+                    match parts.get(i) {
+                        Some(&"cp") => {
+                            i += 1;
+                            info.score_cp = parts.get(i).and_then(|s| s.parse().ok());
+                        }
+                        Some(&"mate") => {
+                            i += 1;
+                            info.score_mate = parts.get(i).and_then(|s| s.parse().ok());
+                        }
+                        _ => {}
+                    }
+                }
+                "nodes" => {
+                    i += 1;
+                    info.nodes = parts.get(i).and_then(|s| s.parse().ok());
+                }
+                "time" => {
+                    i += 1;
+                    info.time_ms = parts.get(i).and_then(|s| s.parse().ok());
+                }
+                "pv" => {
+                    info.pv = parts[i + 1..].iter().map(|s| s.to_string()).collect();
+                    break;
+                }
+                _ => {}
+            }
+            i += 1;
+        }
+
+        if info.depth.is_some() {
+            Some(info)
+        } else {
+            None
+        }
+    }
+}
 
 /// Errors that can occur when communicating with a UCI engine.
 ///
@@ -223,12 +346,18 @@ impl UciClient {
     ///
     /// Sends a `go` command with the specified time control and waits for
     /// the engine to respond with `bestmove`. Returns the best move in
-    /// UCI notation.
+    /// UCI notation along with the last search info received.
     ///
     /// # Arguments
     ///
     /// * `time_control` - Time control parameters (e.g., `"movetime 1000"`,
     ///   `"depth 10"`, `"wtime 60000 btime 60000"`).
+    ///
+    /// # Returns
+    ///
+    /// A tuple of `(bestmove, Option<SearchInfo>)` where `bestmove` is the
+    /// UCI move string and `SearchInfo` contains the last search metrics
+    /// reported by the engine before returning the best move.
     ///
     /// # Errors
     ///
@@ -244,18 +373,27 @@ impl UciClient {
     /// client.set_position(&[])?;
     ///
     /// // Get best move with 1 second thinking time
-    /// let best_move = client.go("movetime 1000")?;
+    /// let (best_move, search_info) = client.go("movetime 1000")?;
     /// println!("Best move: {}", best_move);
+    /// if let Some(info) = search_info {
+    ///     println!("Depth: {:?}, Score: {:?}", info.depth, info.score_cp);
+    /// }
     /// # Ok::<(), bot_arena::uci_client::UciError>(())
     /// ```
-    pub fn go(&mut self, time_control: &str) -> Result<String, UciError> {
+    pub fn go(&mut self, time_control: &str) -> Result<(String, Option<SearchInfo>), UciError> {
         self.send(&format!("go {}", time_control))?;
+
+        let mut last_info: Option<SearchInfo> = None;
 
         loop {
             let line = self.read_line()?;
             if line.starts_with("bestmove ") {
                 let bestmove = line.split_whitespace().nth(1).unwrap_or("").to_string();
-                return Ok(bestmove);
+                return Ok((bestmove, last_info));
+            }
+            // Capture search info lines
+            if let Some(info) = SearchInfo::parse(&line) {
+                last_info = Some(info);
             }
         }
     }
@@ -336,5 +474,124 @@ mod tests {
         let debug_str = format!("{:?}", error);
         assert!(debug_str.contains("InvalidResponse"));
         assert!(debug_str.contains("test response"));
+    }
+
+    #[test]
+    fn test_search_info_parse_basic() {
+        let line = "info depth 20 score cp 35 nodes 1234567 time 1500 pv e2e4 e7e5 g1f3";
+        let info = SearchInfo::parse(line);
+        assert!(info.is_some());
+
+        let info = info.unwrap();
+        assert_eq!(info.depth, Some(20));
+        assert_eq!(info.score_cp, Some(35));
+        assert_eq!(info.score_mate, None);
+        assert_eq!(info.nodes, Some(1234567));
+        assert_eq!(info.time_ms, Some(1500));
+        assert_eq!(info.pv, vec!["e2e4", "e7e5", "g1f3"]);
+    }
+
+    #[test]
+    fn test_search_info_parse_with_mate() {
+        let line = "info depth 15 score mate 3 nodes 500000 pv e2e4 e7e5 d1h5";
+        let info = SearchInfo::parse(line);
+        assert!(info.is_some());
+
+        let info = info.unwrap();
+        assert_eq!(info.depth, Some(15));
+        assert_eq!(info.score_cp, None);
+        assert_eq!(info.score_mate, Some(3));
+        assert_eq!(info.nodes, Some(500000));
+        assert_eq!(info.pv, vec!["e2e4", "e7e5", "d1h5"]);
+    }
+
+    #[test]
+    fn test_search_info_parse_negative_mate() {
+        let line = "info depth 12 score mate -5 pv a2a3";
+        let info = SearchInfo::parse(line);
+        assert!(info.is_some());
+
+        let info = info.unwrap();
+        assert_eq!(info.score_mate, Some(-5));
+    }
+
+    #[test]
+    fn test_search_info_parse_negative_score() {
+        let line = "info depth 10 score cp -150 nodes 10000";
+        let info = SearchInfo::parse(line);
+        assert!(info.is_some());
+
+        let info = info.unwrap();
+        assert_eq!(info.score_cp, Some(-150));
+    }
+
+    #[test]
+    fn test_search_info_parse_invalid() {
+        // Non-info line
+        assert!(SearchInfo::parse("bestmove e2e4").is_none());
+        assert!(SearchInfo::parse("uciok").is_none());
+        assert!(SearchInfo::parse("readyok").is_none());
+
+        // Info line without depth
+        assert!(SearchInfo::parse("info string Loading weights").is_none());
+        assert!(SearchInfo::parse("info currmove e2e4 currmovenumber 1").is_none());
+    }
+
+    #[test]
+    fn test_search_info_parse_empty_pv() {
+        let line = "info depth 5 score cp 10 nodes 100";
+        let info = SearchInfo::parse(line);
+        assert!(info.is_some());
+
+        let info = info.unwrap();
+        assert_eq!(info.depth, Some(5));
+        assert!(info.pv.is_empty());
+    }
+
+    #[test]
+    fn test_search_info_serialize() {
+        let info = SearchInfo {
+            depth: Some(10),
+            score_cp: Some(25),
+            score_mate: None,
+            nodes: Some(50000),
+            time_ms: Some(500),
+            pv: vec!["e2e4".to_string(), "e7e5".to_string()],
+        };
+
+        let json = serde_json::to_string(&info).expect("Failed to serialize");
+        assert!(json.contains("\"depth\":10"));
+        assert!(json.contains("\"score_cp\":25"));
+        assert!(json.contains("\"nodes\":50000"));
+        assert!(json.contains("\"time_ms\":500"));
+        assert!(json.contains("\"pv\":[\"e2e4\",\"e7e5\"]"));
+    }
+
+    #[test]
+    fn test_search_info_default() {
+        let info = SearchInfo::default();
+        assert_eq!(info.depth, None);
+        assert_eq!(info.score_cp, None);
+        assert_eq!(info.score_mate, None);
+        assert_eq!(info.nodes, None);
+        assert_eq!(info.time_ms, None);
+        assert!(info.pv.is_empty());
+    }
+
+    #[test]
+    fn test_search_info_clone() {
+        let info = SearchInfo {
+            depth: Some(10),
+            score_cp: Some(25),
+            score_mate: None,
+            nodes: Some(50000),
+            time_ms: Some(500),
+            pv: vec!["e2e4".to_string()],
+        };
+
+        let cloned = info.clone();
+        assert_eq!(cloned.depth, info.depth);
+        assert_eq!(cloned.score_cp, info.score_cp);
+        assert_eq!(cloned.pv, info.pv);
     }
 }
