@@ -1,3 +1,6 @@
+import { writable } from 'svelte/store';
+import { browser } from '$app/environment';
+
 // Lichess sound set - standard theme
 const SOUND_BASE = 'https://lichess1.org/assets/sound/standard';
 
@@ -11,8 +14,30 @@ const soundUrls: Record<SoundType, string> = {
   gameEnd: `${SOUND_BASE}/Victory.mp3`,
 };
 
+// Mute state with localStorage persistence
+const MUTE_KEY = 'chess-devtools-muted';
+const initialMuted = browser ? localStorage.getItem(MUTE_KEY) === 'true' : false;
+export const isMuted = writable(initialMuted);
+
+// Persist mute state
+isMuted.subscribe((muted) => {
+  if (browser) {
+    localStorage.setItem(MUTE_KEY, String(muted));
+  }
+});
+
+export function toggleMute(): void {
+  isMuted.update((m) => !m);
+}
+
 // Audio cache for instant playback
 const audioCache = new Map<SoundType, HTMLAudioElement>();
+let currentMuted = initialMuted;
+
+// Keep track of mute state
+isMuted.subscribe((m) => {
+  currentMuted = m;
+});
 
 function getAudio(type: SoundType): HTMLAudioElement {
   let audio = audioCache.get(type);
@@ -25,6 +50,7 @@ function getAudio(type: SoundType): HTMLAudioElement {
 }
 
 export function playSound(type: SoundType): void {
+  if (currentMuted) return;
   const audio = getAudio(type);
   audio.currentTime = 0;
   audio.play().catch(() => {

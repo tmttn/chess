@@ -1,5 +1,6 @@
 <script lang="ts">
   import { gameStore, isGameOver } from '../stores/game';
+  import { isMuted, toggleMute } from '../sounds';
 
   interface Props {
     onflip: () => void;
@@ -26,6 +27,9 @@
   >
     <span class="icon">↩</span>
     Undo
+  </button>
+  <button onclick={toggleMute} title={$isMuted ? 'Unmute' : 'Mute'}>
+    <span class="icon">{$isMuted ? '🔇' : '🔊'}</span>
   </button>
 </div>
 
