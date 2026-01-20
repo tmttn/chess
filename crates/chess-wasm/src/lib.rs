@@ -107,7 +107,7 @@ impl Game {
         self.rules.game_result(&self.position).map(|r| match r {
             chess_engine::GameResult::WhiteWins => "white_wins".to_string(),
             chess_engine::GameResult::BlackWins => "black_wins".to_string(),
-            chess_engine::GameResult::Draw => "draw".to_string(),
+            chess_engine::GameResult::Draw(_) => "draw".to_string(),
         })
     }
 

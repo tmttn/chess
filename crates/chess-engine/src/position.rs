@@ -289,6 +289,52 @@ impl Position {
     pub fn pieces_of(&self, piece: Piece, color: Color) -> Bitboard {
         self.pieces[piece.index()] & self.colors[color.index()]
     }
+
+    /// Computes the Zobrist hash for this position.
+    ///
+    /// The hash uniquely identifies the position (with very high probability)
+    /// and is used for repetition detection.
+    pub fn zobrist_hash(&self) -> u64 {
+        use crate::zobrist::ZOBRIST;
+
+        let mut hash = 0u64;
+
+        // Hash pieces
+        for piece in Piece::ALL {
+            for color in [Color::White, Color::Black] {
+                let bb = self.pieces_of(piece, color);
+                for sq in bb {
+                    hash ^= ZOBRIST.piece_key(piece, color, sq);
+                }
+            }
+        }
+
+        // Hash side to move
+        if self.side_to_move == Color::Black {
+            hash ^= ZOBRIST.black_to_move;
+        }
+
+        // Hash castling rights
+        if self.castling.can_castle_kingside(Color::White) {
+            hash ^= ZOBRIST.castling_key(0);
+        }
+        if self.castling.can_castle_queenside(Color::White) {
+            hash ^= ZOBRIST.castling_key(1);
+        }
+        if self.castling.can_castle_kingside(Color::Black) {
+            hash ^= ZOBRIST.castling_key(2);
+        }
+        if self.castling.can_castle_queenside(Color::Black) {
+            hash ^= ZOBRIST.castling_key(3);
+        }
+
+        // Hash en passant file
+        if let Some(ep_square) = self.en_passant {
+            hash ^= ZOBRIST.en_passant_key(ep_square.file().index() as usize);
+        }
+
+        hash
+    }
 }
 
 impl Default for Position {

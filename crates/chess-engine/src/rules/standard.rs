@@ -1,9 +1,9 @@
 //! Standard chess rules implementation.
 
-use super::{GameResult, RuleSet};
+use super::{DrawReason, GameResult, RuleSet};
 use crate::movegen::{generate_moves, is_king_attacked, make_move};
-use crate::{MoveList, Position};
-use chess_core::Move;
+use crate::{Bitboard, MoveList, Position};
+use chess_core::{Color, Move, Piece};
 
 /// Standard chess rules (FIDE).
 ///
@@ -39,9 +39,14 @@ impl RuleSet for StandardChess {
     }
 
     fn game_result(&self, position: &Position) -> Option<GameResult> {
-        // Check 50-move rule
-        if position.halfmove_clock >= 100 {
-            return Some(GameResult::Draw);
+        // Check 75-move rule (automatic draw)
+        if position.halfmove_clock >= 150 {
+            return Some(GameResult::Draw(DrawReason::SeventyFiveMoveRule));
+        }
+
+        // Check insufficient material
+        if self.is_insufficient_material(position) {
+            return Some(GameResult::Draw(DrawReason::InsufficientMaterial));
         }
 
         let moves = self.generate_moves(position);
@@ -49,16 +54,82 @@ impl RuleSet for StandardChess {
             if self.is_check(position) {
                 // Checkmate - the side to move loses
                 return Some(match position.side_to_move {
-                    chess_core::Color::White => GameResult::BlackWins,
-                    chess_core::Color::Black => GameResult::WhiteWins,
+                    Color::White => GameResult::BlackWins,
+                    Color::Black => GameResult::WhiteWins,
                 });
             } else {
                 // Stalemate
-                return Some(GameResult::Draw);
+                return Some(GameResult::Draw(DrawReason::Stalemate));
             }
         }
 
         None
+    }
+
+    fn is_insufficient_material(&self, position: &Position) -> bool {
+        // Count all pieces for each side
+        let white_pawns = position.pieces_of(Piece::Pawn, Color::White).count();
+        let black_pawns = position.pieces_of(Piece::Pawn, Color::Black).count();
+        let white_knights = position.pieces_of(Piece::Knight, Color::White).count();
+        let black_knights = position.pieces_of(Piece::Knight, Color::Black).count();
+        let white_bishops = position.pieces_of(Piece::Bishop, Color::White);
+        let black_bishops = position.pieces_of(Piece::Bishop, Color::Black);
+        let white_rooks = position.pieces_of(Piece::Rook, Color::White).count();
+        let black_rooks = position.pieces_of(Piece::Rook, Color::Black).count();
+        let white_queens = position.pieces_of(Piece::Queen, Color::White).count();
+        let black_queens = position.pieces_of(Piece::Queen, Color::Black).count();
+
+        // If any pawns, rooks, or queens exist, not insufficient
+        if white_pawns > 0
+            || black_pawns > 0
+            || white_rooks > 0
+            || black_rooks > 0
+            || white_queens > 0
+            || black_queens > 0
+        {
+            return false;
+        }
+
+        let white_bishop_count = white_bishops.count();
+        let black_bishop_count = black_bishops.count();
+
+        // K vs K
+        if white_knights == 0
+            && black_knights == 0
+            && white_bishop_count == 0
+            && black_bishop_count == 0
+        {
+            return true;
+        }
+
+        // K+N vs K or K vs K+N
+        if white_bishop_count == 0 && black_bishop_count == 0 {
+            if (white_knights == 1 && black_knights == 0)
+                || (white_knights == 0 && black_knights == 1)
+            {
+                return true;
+            }
+        }
+
+        // K+B vs K or K vs K+B
+        if white_knights == 0 && black_knights == 0 {
+            if (white_bishop_count == 1 && black_bishop_count == 0)
+                || (white_bishop_count == 0 && black_bishop_count == 1)
+            {
+                return true;
+            }
+
+            // K+B vs K+B with bishops on same color
+            if white_bishop_count == 1 && black_bishop_count == 1 {
+                let white_on_light = (white_bishops & Bitboard::LIGHT_SQUARES).is_not_empty();
+                let black_on_light = (black_bishops & Bitboard::LIGHT_SQUARES).is_not_empty();
+                if white_on_light == black_on_light {
+                    return true;
+                }
+            }
+        }
+
+        false
     }
 }
 
@@ -112,13 +183,78 @@ mod tests {
         assert!(!StandardChess.is_check(&pos));
         let moves = StandardChess.generate_moves(&pos);
         assert!(moves.is_empty());
-        assert_eq!(StandardChess.game_result(&pos), Some(GameResult::Draw));
+        assert_eq!(
+            StandardChess.game_result(&pos),
+            Some(GameResult::Draw(DrawReason::Stalemate))
+        );
     }
 
     #[test]
-    fn fifty_move_rule() {
-        let pos = Position::from_fen("8/8/8/8/8/8/8/4K2k w - - 100 1").unwrap();
-        assert_eq!(StandardChess.game_result(&pos), Some(GameResult::Draw));
+    fn seventy_five_move_rule() {
+        let pos = Position::from_fen("8/8/8/8/8/8/8/4K2k w - - 150 1").unwrap();
+        assert_eq!(
+            StandardChess.game_result(&pos),
+            Some(GameResult::Draw(DrawReason::SeventyFiveMoveRule))
+        );
+    }
+
+    #[test]
+    fn insufficient_material_k_vs_k() {
+        let pos = Position::from_fen("8/8/8/8/8/8/8/4K2k w - - 0 1").unwrap();
+        assert!(StandardChess.is_insufficient_material(&pos));
+        assert_eq!(
+            StandardChess.game_result(&pos),
+            Some(GameResult::Draw(DrawReason::InsufficientMaterial))
+        );
+    }
+
+    #[test]
+    fn insufficient_material_k_n_vs_k() {
+        let pos = Position::from_fen("8/8/8/8/8/8/8/4KN1k w - - 0 1").unwrap();
+        assert!(StandardChess.is_insufficient_material(&pos));
+    }
+
+    #[test]
+    fn insufficient_material_k_b_vs_k() {
+        let pos = Position::from_fen("8/8/8/8/8/8/8/4KB1k w - - 0 1").unwrap();
+        assert!(StandardChess.is_insufficient_material(&pos));
+    }
+
+    #[test]
+    fn insufficient_material_k_b_vs_k_b_same_color() {
+        // Both bishops on light squares (f1=light, a2=light)
+        let pos = Position::from_fen("8/8/8/8/8/8/b7/4KB1k w - - 0 1").unwrap();
+        assert!(StandardChess.is_insufficient_material(&pos));
+
+        // Both bishops on dark squares (c1=dark, b2=dark)
+        let pos = Position::from_fen("8/8/8/8/8/8/1b6/2B1K2k w - - 0 1").unwrap();
+        assert!(StandardChess.is_insufficient_material(&pos));
+    }
+
+    #[test]
+    fn sufficient_material_k_b_vs_k_b_opposite_color() {
+        // Bishops on opposite colors (f1=light, b2=dark) - can checkmate
+        let pos = Position::from_fen("8/8/8/8/8/8/1b6/4KB1k w - - 0 1").unwrap();
+        assert!(!StandardChess.is_insufficient_material(&pos));
+    }
+
+    #[test]
+    fn sufficient_material_with_pawn() {
+        let pos = Position::from_fen("8/8/8/8/8/8/4P3/4K2k w - - 0 1").unwrap();
+        assert!(!StandardChess.is_insufficient_material(&pos));
+    }
+
+    #[test]
+    fn sufficient_material_with_rook() {
+        let pos = Position::from_fen("8/8/8/8/8/8/8/4KR1k w - - 0 1").unwrap();
+        assert!(!StandardChess.is_insufficient_material(&pos));
+    }
+
+    #[test]
+    fn sufficient_material_k_n_n_vs_k() {
+        // Two knights can technically checkmate (with opponent cooperation)
+        let pos = Position::from_fen("8/8/8/8/8/8/8/3NKN1k w - - 0 1").unwrap();
+        assert!(!StandardChess.is_insufficient_material(&pos));
     }
 
     #[test]

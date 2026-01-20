@@ -18,8 +18,27 @@ pub enum GameResult {
     WhiteWins,
     /// Black wins (checkmate or resignation).
     BlackWins,
-    /// Draw (stalemate, insufficient material, 50-move rule, repetition, agreement).
-    Draw,
+    /// Draw with a specific reason.
+    Draw(DrawReason),
+}
+
+/// Reason for a draw.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DrawReason {
+    /// Stalemate - no legal moves but not in check.
+    Stalemate,
+    /// Insufficient material to checkmate.
+    InsufficientMaterial,
+    /// 50-move rule (100 half-moves without pawn move or capture) - claimable.
+    FiftyMoveRule,
+    /// 75-move rule (150 half-moves) - automatic draw.
+    SeventyFiveMoveRule,
+    /// Threefold repetition - claimable.
+    ThreefoldRepetition,
+    /// Fivefold repetition - automatic draw.
+    FivefoldRepetition,
+    /// Draw by agreement.
+    Agreement,
 }
 
 /// Trait for implementing chess variants.
@@ -68,10 +87,17 @@ pub trait RuleSet {
     fn is_check(&self, position: &Position) -> bool;
 
     /// Returns the game result if the game is over, otherwise `None`.
+    ///
+    /// Note: This only checks conditions detectable from a single position
+    /// (checkmate, stalemate, 75-move rule, insufficient material).
+    /// For repetition draws, use the [`Game`](crate::Game) struct which tracks history.
     fn game_result(&self, position: &Position) -> Option<GameResult>;
 
     /// Returns true if the game is over.
     fn is_game_over(&self, position: &Position) -> bool {
         self.game_result(position).is_some()
     }
+
+    /// Returns true if neither side has sufficient material to checkmate.
+    fn is_insufficient_material(&self, position: &Position) -> bool;
 }

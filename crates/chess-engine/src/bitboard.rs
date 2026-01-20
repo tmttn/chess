@@ -32,6 +32,12 @@ impl Bitboard {
     pub const RANK_7: Bitboard = Bitboard(0x00FF_0000_0000_0000);
     pub const RANK_8: Bitboard = Bitboard(0xFF00_0000_0000_0000);
 
+    // Square color masks (a1 is dark)
+    /// All dark squares (a1, c1, e1, g1, b2, d2, ...).
+    pub const DARK_SQUARES: Bitboard = Bitboard(0xAA55_AA55_AA55_AA55);
+    /// All light squares (b1, d1, f1, h1, a2, c2, ...).
+    pub const LIGHT_SQUARES: Bitboard = Bitboard(0x55AA_55AA_55AA_55AA);
+
     /// Creates a bitboard from a raw u64.
     #[inline]
     pub const fn new(bits: u64) -> Self {
