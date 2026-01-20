@@ -24,5 +24,7 @@ lcov.info
 node_modules/
 dist/
 *.tsbuildinfo
+.svelte-kit/
+pnpm-lock.yaml
 .playwright-mcp/
 .worktrees/
