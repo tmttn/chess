@@ -79,6 +79,14 @@ pub struct ArenaConfig {
     /// Map of preset names to their configurations.
     #[serde(default)]
     pub presets: HashMap<String, PresetConfig>,
+    /// Path to Stockfish engine for analysis.
+    /// Defaults to "stockfish" (assumes it's in PATH).
+    #[serde(default = "default_stockfish_path")]
+    pub stockfish_path: String,
+}
+
+fn default_stockfish_path() -> String {
+    "stockfish".to_string()
 }
 
 impl ArenaConfig {
@@ -284,5 +292,21 @@ time_control = "movetime 200"
         assert_eq!(deserialized.games, preset.games);
         assert_eq!(deserialized.openings, preset.openings);
         assert_eq!(deserialized.time_control, preset.time_control);
+    }
+
+    #[test]
+    fn test_stockfish_path_default() {
+        let config: ArenaConfig = toml::from_str("").unwrap();
+        assert_eq!(config.stockfish_path, "stockfish");
+    }
+
+    #[test]
+    fn test_stockfish_path_custom() {
+        let toml_content = r#"
+stockfish_path = "/opt/stockfish/stockfish"
+"#;
+
+        let config: ArenaConfig = toml::from_str(toml_content).unwrap();
+        assert_eq!(config.stockfish_path, "/opt/stockfish/stockfish");
     }
 }

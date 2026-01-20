@@ -337,12 +337,10 @@ mod tests {
     #[test]
     fn test_game_result_with_white_wins() {
         let result = GameResult {
-            moves: vec![
-                MoveRecord {
-                    uci: "e2e4".to_string(),
-                    search_info: None,
-                },
-            ],
+            moves: vec![MoveRecord {
+                uci: "e2e4".to_string(),
+                search_info: None,
+            }],
             result: MatchResult::WhiteWins,
             white_name: "Stockfish".to_string(),
             black_name: "Komodo".to_string(),
@@ -408,12 +406,12 @@ mod tests {
             MatchResult::BlackWins,
             MatchResult::Draw,
         ];
-        
+
         // Each variant should be equal to itself
         for v in &variants {
             assert_eq!(*v, *v);
         }
-        
+
         // All variants should be different from each other
         assert_ne!(variants[0], variants[1]);
         assert_ne!(variants[1], variants[2]);
