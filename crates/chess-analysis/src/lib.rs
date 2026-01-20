@@ -25,6 +25,6 @@ pub mod engine;
 pub mod evaluation;
 pub mod quality;
 
-pub use engine::AnalysisEngine;
+pub use engine::{AnalysisEngine, EngineError, PositionAnalysis};
 pub use evaluation::Evaluation;
 pub use quality::{GameAnalysis, MoveAnalysis, MoveQuality, PlayerStats};
