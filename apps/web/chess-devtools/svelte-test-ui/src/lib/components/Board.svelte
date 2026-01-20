@@ -153,27 +153,27 @@
 
   .coordinates {
     position: absolute;
-    display: flex;
+    display: grid;
     color: var(--text-muted);
     font-size: 0.75rem;
     font-weight: 500;
   }
 
+  .coordinates span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
   .coordinates.files {
     bottom: -1.5rem;
     left: 0;
-    right: 0;
-    justify-content: space-around;
-    padding: 0 calc(var(--square-size) * 0.3);
+    grid-template-columns: repeat(8, var(--square-size));
   }
 
   .coordinates.ranks {
     top: 0;
-    bottom: 0;
     left: -1.25rem;
-    flex-direction: column;
-    justify-content: space-around;
-    align-items: center;
-    padding: calc(var(--square-size) * 0.3) 0;
+    grid-template-rows: repeat(8, var(--square-size));
   }
 </style>
