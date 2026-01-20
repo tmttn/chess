@@ -37,6 +37,6 @@ impl AnalysisEngine {
     /// Position evaluation (placeholder implementation)
     pub fn analyze(&mut self, _fen: &str, _depth: u8) -> Result<Evaluation, std::io::Error> {
         // Placeholder - will be implemented in later tasks
-        Ok(Evaluation::Centipawns(0))
+        Ok(Evaluation::Centipawn(0))
     }
 }
