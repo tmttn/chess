@@ -1,6 +1,7 @@
 //! Standard chess rules implementation.
 
 use super::{GameResult, RuleSet};
+use crate::movegen::{generate_moves, is_king_attacked, make_move};
 use crate::{MoveList, Position};
 use chess_core::Move;
 
@@ -21,81 +22,23 @@ impl RuleSet for StandardChess {
         Position::startpos()
     }
 
-    fn generate_moves(&self, _position: &Position) -> MoveList {
-        // TODO: Implement full legal move generation
-        //
-        // This will involve:
-        // 1. Generate pseudo-legal moves for all pieces
-        // 2. Filter out moves that leave the king in check
-        // 3. Add castling moves if legal
-        // 4. Add en passant captures if legal
-        //
-        // For now, return empty list (scaffold)
-        MoveList::new()
+    fn generate_moves(&self, position: &Position) -> MoveList {
+        generate_moves(position)
     }
 
     fn is_legal(&self, position: &Position, m: Move) -> bool {
-        // TODO: Implement proper legality check
-        //
-        // A move is legal if:
-        // 1. The piece can make that move
-        // 2. The path is not blocked (for sliders)
-        // 3. The move doesn't leave own king in check
-        // 4. Special rules for castling, en passant
-        //
-        // For now, check if move is in generated moves
         self.generate_moves(position).as_slice().contains(&m)
     }
 
     fn make_move(&self, position: &Position, m: Move) -> Position {
-        // TODO: Implement full move making
-        //
-        // This involves:
-        // 1. Move the piece
-        // 2. Handle captures
-        // 3. Handle special moves (castling, en passant, promotion)
-        // 4. Update castling rights
-        // 5. Update en passant square
-        // 6. Update halfmove clock
-        // 7. Update fullmove number
-        //
-        // For now, return a clone (scaffold)
-        let mut new_pos = position.clone();
-
-        // Update side to move
-        new_pos.side_to_move = position.side_to_move.opposite();
-
-        // Update fullmove number
-        if new_pos.side_to_move == chess_core::Color::White {
-            new_pos.fullmove_number += 1;
-        }
-
-        // Clear en passant (will be set if this is a double pawn push)
-        new_pos.en_passant = None;
-
-        let _ = m; // Suppress unused warning for now
-
-        new_pos
+        make_move(position, m)
     }
 
-    fn is_check(&self, _position: &Position) -> bool {
-        // TODO: Implement check detection
-        //
-        // A position is in check if any enemy piece attacks the king.
-        // Use attack tables to efficiently detect this.
-        false
+    fn is_check(&self, position: &Position) -> bool {
+        is_king_attacked(position, position.side_to_move)
     }
 
     fn game_result(&self, position: &Position) -> Option<GameResult> {
-        // TODO: Implement full game result detection
-        //
-        // The game is over if:
-        // 1. Checkmate (no legal moves and in check)
-        // 2. Stalemate (no legal moves and not in check)
-        // 3. 50-move rule (halfmove clock >= 100)
-        // 4. Insufficient material
-        // 5. Threefold repetition (requires position history)
-
         // Check 50-move rule
         if position.halfmove_clock >= 100 {
             return Some(GameResult::Draw);
@@ -129,13 +72,79 @@ mod tests {
         assert_eq!(pos.to_fen(), chess_core::FenParser::STARTPOS);
     }
 
-    // TODO: Add more tests as move generation is implemented
-    //
-    // - Test legal moves from starting position (should be 20)
-    // - Test castling legality
-    // - Test en passant
-    // - Test promotion
-    // - Test checkmate detection
-    // - Test stalemate detection
-    // - Perft tests for move generator correctness
+    #[test]
+    fn starting_moves() {
+        let pos = StandardChess.initial_position();
+        let moves = StandardChess.generate_moves(&pos);
+        assert_eq!(moves.len(), 20); // 16 pawn moves + 4 knight moves
+    }
+
+    #[test]
+    fn not_in_check_startpos() {
+        let pos = StandardChess.initial_position();
+        assert!(!StandardChess.is_check(&pos));
+    }
+
+    #[test]
+    fn no_game_result_startpos() {
+        let pos = StandardChess.initial_position();
+        assert!(StandardChess.game_result(&pos).is_none());
+    }
+
+    #[test]
+    fn checkmate_fools_mate() {
+        // Fool's mate position - black has checkmated white
+        let pos = Position::from_fen("rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 0 1")
+            .unwrap();
+        assert!(StandardChess.is_check(&pos));
+        assert_eq!(
+            StandardChess.game_result(&pos),
+            Some(GameResult::BlackWins)
+        );
+    }
+
+    #[test]
+    fn stalemate() {
+        // Classic stalemate position - black king trapped in corner
+        // Black king on h8, white queen on f7, white king on g6
+        // Queen and king control all escape squares but don't give check
+        let pos = Position::from_fen("7k/5Q2/6K1/8/8/8/8/8 b - - 0 1").unwrap();
+        assert!(!StandardChess.is_check(&pos));
+        let moves = StandardChess.generate_moves(&pos);
+        assert!(moves.is_empty());
+        assert_eq!(StandardChess.game_result(&pos), Some(GameResult::Draw));
+    }
+
+    #[test]
+    fn fifty_move_rule() {
+        let pos = Position::from_fen("8/8/8/8/8/8/8/4K2k w - - 100 1").unwrap();
+        assert_eq!(StandardChess.game_result(&pos), Some(GameResult::Draw));
+    }
+
+    #[test]
+    fn is_legal_move() {
+        let pos = StandardChess.initial_position();
+        let e2 = chess_core::Square::new(chess_core::File::E, chess_core::Rank::R2);
+        let e4 = chess_core::Square::new(chess_core::File::E, chess_core::Rank::R4);
+        let legal_move = Move::new(e2, e4, chess_core::MoveFlag::DoublePush);
+        assert!(StandardChess.is_legal(&pos, legal_move));
+
+        // Illegal move - e2 to e5
+        let e5 = chess_core::Square::new(chess_core::File::E, chess_core::Rank::R5);
+        let illegal_move = Move::normal(e2, e5);
+        assert!(!StandardChess.is_legal(&pos, illegal_move));
+    }
+
+    #[test]
+    fn make_move_updates_position() {
+        let pos = StandardChess.initial_position();
+        let e2 = chess_core::Square::new(chess_core::File::E, chess_core::Rank::R2);
+        let e4 = chess_core::Square::new(chess_core::File::E, chess_core::Rank::R4);
+        let m = Move::new(e2, e4, chess_core::MoveFlag::DoublePush);
+
+        let new_pos = StandardChess.make_move(&pos, m);
+        assert_eq!(new_pos.side_to_move, chess_core::Color::Black);
+        assert!(new_pos.piece_at(e4).is_some());
+        assert!(new_pos.piece_at(e2).is_none());
+    }
 }

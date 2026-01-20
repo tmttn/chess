@@ -24,12 +24,15 @@
 //! ```
 
 mod bitboard;
-mod movegen;
+pub mod movegen;
 mod position;
 pub mod rules;
 mod zobrist;
 
 pub use bitboard::Bitboard;
-pub use movegen::MoveList;
+pub use movegen::{
+    bishop_attacks, generate_moves, is_king_attacked, king_attacks, knight_attacks, make_move,
+    pawn_attacks, queen_attacks, rook_attacks, MoveList,
+};
 pub use position::Position;
 pub use rules::{GameResult, RuleSet, StandardChess};
