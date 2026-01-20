@@ -1,0 +1,26 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/chess-core",
+    "crates/chess-engine",
+    "crates/chess-wasm",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/tommetten/chess"
+authors = ["Tom Metten"]
+
+[workspace.dependencies]
+chess-core = { path = "crates/chess-core" }
+chess-engine = { path = "crates/chess-engine" }
+thiserror = "1.0"
+proptest = "1.4"
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3
+strip = true

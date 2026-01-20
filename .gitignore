@@ -1,0 +1,26 @@
+# Rust
+/target/
+Cargo.lock
+
+# WASM build output
+crates/chess-wasm/pkg/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Coverage
+lcov.info
+*.profraw
+*.profdata
+
+# Node (for future TypeScript packages)
+node_modules/
+dist/
+*.tsbuildinfo

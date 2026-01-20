@@ -1,0 +1,15 @@
+[package]
+name = "chess-engine"
+description = "High-performance chess engine with bitboard representation"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+chess-core.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
