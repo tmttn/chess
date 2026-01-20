@@ -5,9 +5,10 @@ members = [
     "crates/chess-engine",
     "crates/chess-wasm",
     "crates/uci",
-    "crates/bot-bridge",
     "crates/bot-random",
     "crates/bot-minimax",
+    "crates/bot-bridge",
+    "crates/bot-arena",
 ]
 
 [workspace.package]
