@@ -27,6 +27,8 @@ pub fn init_db<P: AsRef<Path>>(path: P) -> SqliteResult<DbPool> {
 
     conn.execute_batch(
         "
+        PRAGMA foreign_keys = ON;
+
         CREATE TABLE IF NOT EXISTS bots (
             name TEXT PRIMARY KEY,
             elo_rating INTEGER DEFAULT 1500,
@@ -221,5 +223,22 @@ mod tests {
         );
 
         assert!(result.is_err(), "Duplicate game_id/ply should fail");
+    }
+
+    #[test]
+    fn test_foreign_key_enforcement() {
+        let db = init_db(":memory:").expect("Failed to init db");
+        let conn = db.lock().unwrap();
+
+        // Try to insert a game with non-existent match_id - should fail
+        let result = conn.execute(
+            "INSERT INTO games (id, match_id, game_number, started_at) VALUES ('g1', 'nonexistent', 1, '2025-01-01')",
+            [],
+        );
+
+        assert!(
+            result.is_err(),
+            "Foreign key constraint should prevent orphaned game"
+        );
     }
 }
