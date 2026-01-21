@@ -7,6 +7,7 @@
 
 mod api;
 mod db;
+mod elo;
 mod models;
 mod repo;
 
