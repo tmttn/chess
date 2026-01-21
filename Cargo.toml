@@ -12,6 +12,7 @@ members = [
     "crates/bot-bridge",
     "crates/bot-arena",
     "crates/bot-arena-server",
+    "crates/bot-arena-worker",
 ]
 
 [workspace.package]

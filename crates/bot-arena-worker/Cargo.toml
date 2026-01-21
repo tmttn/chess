@@ -1,0 +1,19 @@
+[package]
+name = "bot-arena-worker"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+rusqlite = { version = "0.31", features = ["bundled"] }
+uuid = { version = "1", features = ["v4"] }
+chrono = "0.4"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+clap = { version = "4", features = ["derive"] }
+anyhow = "1"
+
+# Reuse from workspace
+chess-core = { path = "../chess-core" }
+chess-engine = { path = "../chess-engine" }
+uci = { path = "../uci" }
