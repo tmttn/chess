@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
-  import { api } from '$lib/api';
+  import { api, type AnalysisResult } from '$lib/api';
   import { parseFen, parseUciMove, getSideToMove, STARTING_FEN } from '$lib/fen';
   import { Board } from '@tmttn-chess/board';
   import type { MatchDetail, Move, Game } from '$lib/types';
@@ -12,6 +12,11 @@
   let selectedGame = $state(0);
   let loading = $state(true);
   let error = $state<string | null>(null);
+
+  // Analysis state
+  let analysis: AnalysisResult | null = $state(null);
+  let analyzing = $state(false);
+  let analysisError = $state<string | null>(null);
 
   const id = $derived($page.params.id);
 
@@ -75,6 +80,48 @@
   function formatMoveNumber(index: number): string {
     return `${Math.floor(index / 2) + 1}.`;
   }
+
+  // Clear analysis when position changes
+  $effect(() => {
+    // Access currentFen to track it
+    currentFen;
+    analysis = null;
+    analysisError = null;
+  });
+
+  async function analyzePosition() {
+    if (analyzing) return;
+    analyzing = true;
+    analysisError = null;
+    try {
+      analysis = await api.getAnalysis(currentFen);
+    } catch (e) {
+      analysisError = e instanceof Error ? e.message : 'Analysis failed';
+      analysis = null;
+    } finally {
+      analyzing = false;
+    }
+  }
+
+  /**
+   * Format centipawn score for display
+   * @param cp - Centipawn value
+   * @returns Formatted string (e.g., "+1.25" or "-0.50")
+   */
+  function formatScore(cp: number): string {
+    const pawns = cp / 100;
+    const sign = pawns >= 0 ? '+' : '';
+    return `${sign}${pawns.toFixed(2)}`;
+  }
+
+  /**
+   * Format mate score for display
+   * @param mate - Moves until mate
+   * @returns Formatted string (e.g., "#5" or "#-3")
+   */
+  function formatMate(mate: number): string {
+    return `#${mate}`;
+  }
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
@@ -119,6 +166,51 @@
           <span class="ply-info">{currentPly} / {moves.length}</span>
           <button onclick={() => goTo(currentPly + 1)} title="Next (Right Arrow)">&gt;</button>
           <button onclick={() => goTo(moves.length)} title="End (End)">&gt;|</button>
+        </div>
+
+        <div class="analysis-section">
+          <button
+            class="analyze-btn"
+            onclick={analyzePosition}
+            disabled={analyzing}
+          >
+            {analyzing ? 'Analyzing...' : 'Analyze Position'}
+          </button>
+
+          {#if analysisError}
+            <p class="analysis-error">{analysisError}</p>
+          {/if}
+
+          {#if analysis}
+            <div class="analysis-results">
+              <div class="analysis-row">
+                <span class="analysis-label">Evaluation:</span>
+                <span class="analysis-value evaluation">
+                  {#if analysis.score_mate !== null}
+                    {formatMate(analysis.score_mate)}
+                  {:else if analysis.score_cp !== null}
+                    {formatScore(analysis.score_cp)}
+                  {:else}
+                    N/A
+                  {/if}
+                </span>
+              </div>
+              <div class="analysis-row">
+                <span class="analysis-label">Best Move:</span>
+                <span class="analysis-value">{analysis.best_move}</span>
+              </div>
+              {#if analysis.pv.length > 0}
+                <div class="analysis-row pv-row">
+                  <span class="analysis-label">Principal Variation:</span>
+                  <span class="analysis-value pv">{analysis.pv.join(' ')}</span>
+                </div>
+              {/if}
+              <div class="analysis-row">
+                <span class="analysis-label">Depth:</span>
+                <span class="analysis-value">{analysis.depth}</span>
+              </div>
+            </div>
+          {/if}
         </div>
       </div>
 
@@ -321,6 +413,84 @@
 
   .error {
     color: var(--highlight);
+  }
+
+  /* Analysis section styles */
+  .analysis-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-top: 1rem;
+  }
+
+  .analyze-btn {
+    padding: 0.75rem 1.5rem;
+    background: var(--highlight);
+    border: none;
+    border-radius: 4px;
+    color: var(--text);
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 0.875rem;
+    transition: opacity 0.2s;
+  }
+
+  .analyze-btn:hover:not(:disabled) {
+    opacity: 0.9;
+  }
+
+  .analyze-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .analysis-error {
+    color: var(--highlight);
+    font-size: 0.875rem;
+    text-align: center;
+  }
+
+  .analysis-results {
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .analysis-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1rem;
+  }
+
+  .analysis-row.pv-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+  }
+
+  .analysis-label {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+  }
+
+  .analysis-value {
+    font-family: monospace;
+    font-size: 0.875rem;
+  }
+
+  .analysis-value.evaluation {
+    font-size: 1.25rem;
+    font-weight: bold;
+    color: var(--highlight);
+  }
+
+  .analysis-value.pv {
+    word-break: break-word;
+    line-height: 1.5;
   }
 
   @media (max-width: 800px) {

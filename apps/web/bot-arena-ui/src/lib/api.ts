@@ -2,6 +2,22 @@ import type { Bot, Match, MatchDetail, Move } from './types';
 
 const BASE_URL = '/api';
 
+/** Result of Stockfish analysis for a position */
+export interface AnalysisResult {
+  /** The FEN string of the analyzed position */
+  fen: string;
+  /** Search depth used for analysis */
+  depth: number;
+  /** Score in centipawns (null if mate is found) */
+  score_cp: number | null;
+  /** Moves until mate (null if no mate found, positive = white winning) */
+  score_mate: number | null;
+  /** Best move in UCI notation */
+  best_move: string;
+  /** Principal variation (best line) */
+  pv: string[];
+}
+
 /** Request body for creating a new match */
 export interface CreateMatchRequest {
   /** Name of the bot playing as white */
@@ -100,5 +116,16 @@ export const api = {
       throw new Error(`API error: ${response.status} ${response.statusText}`);
     }
     return response.json();
+  },
+
+  /**
+   * Analyze a chess position using Stockfish
+   * @param fen - FEN string of the position to analyze
+   * @param depth - Search depth (default: 20)
+   * @returns Analysis result with evaluation and best move
+   */
+  getAnalysis(fen: string, depth: number = 20): Promise<AnalysisResult> {
+    const params = new URLSearchParams({ fen, depth: depth.toString() });
+    return fetchJson(`/analysis?${params}`);
   },
 };
