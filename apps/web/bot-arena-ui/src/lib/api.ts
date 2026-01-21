@@ -2,6 +2,20 @@ import type { Bot, Match, MatchDetail, Move } from './types';
 
 const BASE_URL = '/api';
 
+/** Request body for creating a new match */
+export interface CreateMatchRequest {
+  /** Name of the bot playing as white */
+  white_bot: string;
+  /** Name of the bot playing as black */
+  black_bot: string;
+  /** Number of games in the match */
+  games: number;
+  /** Time per move in milliseconds (optional) */
+  movetime_ms?: number;
+  /** Opening book ID to use (optional) */
+  opening_id?: string;
+}
+
 /**
  * Fetch JSON from the API with type safety
  * @param url - API endpoint path (without base URL)
@@ -69,5 +83,22 @@ export const api = {
    */
   getGameMoves(gameId: string): Promise<Move[]> {
     return fetchJson(`/games/${gameId}/moves`);
+  },
+
+  /**
+   * Create a new match between two bots
+   * @param req - Match creation parameters
+   * @returns Created match details
+   */
+  async createMatch(req: CreateMatchRequest): Promise<Match> {
+    const response = await fetch(`${BASE_URL}/matches`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req),
+    });
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status} ${response.statusText}`);
+    }
+    return response.json();
   },
 };
