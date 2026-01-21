@@ -4,5 +4,7 @@
 //! and positions.
 
 pub mod board;
+pub mod match_export;
 
 pub use board::{BoardTemplate, PieceView};
+pub use match_export::{GameSummary, MatchExportTemplate};

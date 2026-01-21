@@ -90,6 +90,7 @@ async fn main() {
         )
         .route("/api/matches/:id", get(api::matches::get_match_detail))
         .route("/api/games/:id/moves", get(api::matches::get_game_moves))
+        .route("/api/export/match/:id", get(api::export::export_match))
         .route("/api/openings", get(api::openings::list_openings))
         .route("/api/stats/head-to-head", get(api::stats::head_to_head))
         .with_state(state)

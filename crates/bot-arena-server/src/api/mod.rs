@@ -2,6 +2,7 @@
 
 pub mod analysis;
 pub mod bots;
+pub mod export;
 pub mod matches;
 pub mod openings;
 pub mod stats;
