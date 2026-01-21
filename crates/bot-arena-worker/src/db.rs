@@ -132,10 +132,11 @@ pub fn create_game(
     game_number: i32,
 ) -> SqliteResult<()> {
     let conn = db.lock().unwrap();
+    let now = chrono::Utc::now().to_rfc3339();
     conn.execute(
-        "INSERT INTO games (id, match_id, game_number)
-         VALUES (?1, ?2, ?3)",
-        (game_id, match_id, game_number),
+        "INSERT INTO games (id, match_id, game_number, started_at)
+         VALUES (?1, ?2, ?3, ?4)",
+        (game_id, match_id, game_number, &now),
     )?;
     Ok(())
 }
