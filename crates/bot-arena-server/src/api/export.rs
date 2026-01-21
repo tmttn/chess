@@ -12,7 +12,8 @@ use axum::{
 use crate::repo::MatchRepo;
 use crate::AppState;
 use bot_arena_server::templates::{
-    BoardTemplate, GameExportTemplate, GameSummary, MatchExportTemplate,
+    BoardTemplate, BotExportTemplate, EloPoint, GameExportTemplate, GameSummary,
+    MatchExportTemplate,
 };
 
 /// Export a match as a standalone HTML file.
@@ -259,6 +260,147 @@ pub async fn export_game(
         sanitize_filename(&white_bot),
         sanitize_filename(&black_bot)
     );
+
+    // Build response with Content-Disposition header for download
+    let response = (
+        [
+            (header::CONTENT_TYPE, "text/html; charset=utf-8"),
+            (
+                header::CONTENT_DISPOSITION,
+                &format!("attachment; filename=\"{}\"", filename),
+            ),
+        ],
+        Html(html),
+    )
+        .into_response();
+
+    Ok(response)
+}
+
+/// Query result for bot information.
+struct BotQueryResult {
+    name: String,
+    elo_rating: i32,
+    games_played: i32,
+    wins: i32,
+    draws: i32,
+    losses: i32,
+}
+
+/// Query result for Elo history.
+struct EloHistoryRow {
+    elo_rating: i32,
+    recorded_at: String,
+}
+
+/// Export a bot profile as a standalone HTML file.
+///
+/// Generates a complete HTML page with the bot's statistics, Elo rating,
+/// and Elo history chart that can be saved and viewed offline.
+///
+/// # Endpoint
+///
+/// `GET /api/export/bot/:name`
+///
+/// # Response
+///
+/// - `200 OK`: HTML file download
+/// - `404 Not Found`: Bot with given name doesn't exist
+/// - `500 Internal Server Error`: Database or rendering error
+pub async fn export_bot(
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+) -> Result<Response, StatusCode> {
+    // Query bot information
+    let bot = {
+        let conn = state
+            .db
+            .lock()
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+        conn.query_row(
+            "SELECT name, elo_rating, games_played, wins, draws, losses
+             FROM bots WHERE name = ?1",
+            [&name],
+            |row| {
+                Ok(BotQueryResult {
+                    name: row.get(0)?,
+                    elo_rating: row.get(1)?,
+                    games_played: row.get(2)?,
+                    wins: row.get(3)?,
+                    draws: row.get(4)?,
+                    losses: row.get(5)?,
+                })
+            },
+        )
+        .map_err(|_| StatusCode::NOT_FOUND)?
+    };
+
+    // Calculate win rate
+    let win_rate = if bot.games_played > 0 {
+        format!("{:.1}", (bot.wins as f64 / bot.games_played as f64) * 100.0)
+    } else {
+        "0.0".to_string()
+    };
+
+    // Query Elo history
+    let elo_history: Vec<EloPoint> = {
+        let conn = state
+            .db
+            .lock()
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+        let mut stmt = conn
+            .prepare(
+                "SELECT elo_rating, recorded_at FROM elo_history
+                 WHERE bot_name = ?1
+                 ORDER BY recorded_at ASC",
+            )
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+        let history_rows: Vec<EloHistoryRow> = stmt
+            .query_map([&name], |row| {
+                Ok(EloHistoryRow {
+                    elo_rating: row.get(0)?,
+                    recorded_at: row.get(1)?,
+                })
+            })
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        history_rows
+            .into_iter()
+            .map(|h| EloPoint {
+                elo: h.elo_rating,
+                date: h.recorded_at,
+            })
+            .collect()
+    };
+
+    // Generate Elo chart
+    let elo_chart = BotExportTemplate::generate_elo_chart(&elo_history);
+
+    // Build the template
+    let template = BotExportTemplate {
+        name: bot.name.clone(),
+        elo: bot.elo_rating,
+        games_played: bot.games_played,
+        wins: bot.wins,
+        draws: bot.draws,
+        losses: bot.losses,
+        win_rate,
+        elo_history,
+        elo_chart,
+    };
+
+    // Render the template
+    let html = template
+        .render()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Create filename for download
+    let filename = format!("bot_profile_{}.html", sanitize_filename(&bot.name));
 
     // Build response with Content-Disposition header for download
     let response = (
@@ -643,5 +785,171 @@ mod tests {
 
         // Should not contain "Opening:" when no opening is set
         assert!(!html.contains("Opening:"));
+    }
+
+    fn insert_bot_with_stats(
+        state: &AppState,
+        name: &str,
+        elo: i32,
+        games_played: i32,
+        wins: i32,
+        draws: i32,
+        losses: i32,
+    ) {
+        let conn = state.db.lock().unwrap();
+        conn.execute(
+            "INSERT INTO bots (name, elo_rating, games_played, wins, draws, losses)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![name, elo, games_played, wins, draws, losses],
+        )
+        .unwrap();
+    }
+
+    fn insert_elo_history(state: &AppState, bot_name: &str, elo: i32, recorded_at: &str) {
+        let conn = state.db.lock().unwrap();
+        conn.execute(
+            "INSERT INTO elo_history (bot_name, elo_rating, recorded_at)
+             VALUES (?1, ?2, ?3)",
+            rusqlite::params![bot_name, elo, recorded_at],
+        )
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_export_bot_not_found() {
+        let state = test_state();
+        let result = export_bot(State(state), Path("nonexistent".to_string())).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn test_export_bot_success() {
+        let state = test_state();
+        insert_bot_with_stats(&state, "stockfish", 1650, 100, 60, 20, 20);
+
+        let result = export_bot(State(state), Path("stockfish".to_string())).await;
+        assert!(result.is_ok());
+
+        let response = result.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        // Check Content-Type header
+        let content_type = response
+            .headers()
+            .get(header::CONTENT_TYPE)
+            .expect("Should have Content-Type header");
+        assert!(content_type.to_str().unwrap().contains("text/html"));
+
+        // Check Content-Disposition header
+        let content_disposition = response
+            .headers()
+            .get(header::CONTENT_DISPOSITION)
+            .expect("Should have Content-Disposition header");
+        let disposition_str = content_disposition.to_str().unwrap();
+        assert!(disposition_str.contains("attachment"));
+        assert!(disposition_str.contains("bot_profile_stockfish.html"));
+    }
+
+    #[tokio::test]
+    async fn test_export_bot_contains_correct_content() {
+        let state = test_state();
+        insert_bot_with_stats(&state, "minimax", 1550, 50, 25, 10, 15);
+
+        let result = export_bot(State(state), Path("minimax".to_string())).await;
+        assert!(result.is_ok());
+
+        let response = result.unwrap();
+        let body = response.into_body();
+        let bytes = body.collect().await.unwrap().to_bytes();
+        let html = String::from_utf8(bytes.to_vec()).unwrap();
+
+        // Verify the HTML contains expected content
+        assert!(html.contains("minimax"));
+        assert!(html.contains("1550 Elo"));
+        assert!(html.contains("50")); // games_played
+        assert!(html.contains("25")); // wins
+        assert!(html.contains("10")); // draws
+        assert!(html.contains("15")); // losses
+        assert!(html.contains("50.0%")); // win_rate = 25/50 = 50%
+        assert!(html.contains("Generated by Bot Arena"));
+    }
+
+    #[tokio::test]
+    async fn test_export_bot_with_elo_history() {
+        let state = test_state();
+        insert_bot_with_stats(&state, "alpha", 1600, 20, 12, 4, 4);
+        insert_elo_history(&state, "alpha", 1500, "2025-01-01");
+        insert_elo_history(&state, "alpha", 1520, "2025-01-05");
+        insert_elo_history(&state, "alpha", 1580, "2025-01-10");
+        insert_elo_history(&state, "alpha", 1600, "2025-01-15");
+
+        let result = export_bot(State(state), Path("alpha".to_string())).await;
+        assert!(result.is_ok());
+
+        let response = result.unwrap();
+        let body = response.into_body();
+        let bytes = body.collect().await.unwrap().to_bytes();
+        let html = String::from_utf8(bytes.to_vec()).unwrap();
+
+        // Should have Elo History section with SVG chart
+        assert!(html.contains("Elo History"));
+        assert!(html.contains("<svg"));
+        assert!(html.contains("polyline"));
+    }
+
+    #[tokio::test]
+    async fn test_export_bot_without_elo_history() {
+        let state = test_state();
+        insert_bot_with_stats(&state, "newbot", 1500, 0, 0, 0, 0);
+
+        let result = export_bot(State(state), Path("newbot".to_string())).await;
+        assert!(result.is_ok());
+
+        let response = result.unwrap();
+        let body = response.into_body();
+        let bytes = body.collect().await.unwrap().to_bytes();
+        let html = String::from_utf8(bytes.to_vec()).unwrap();
+
+        // Should NOT have Elo History section
+        assert!(!html.contains("Elo History"));
+    }
+
+    #[tokio::test]
+    async fn test_export_bot_zero_games_win_rate() {
+        let state = test_state();
+        insert_bot_with_stats(&state, "fresh_bot", 1500, 0, 0, 0, 0);
+
+        let result = export_bot(State(state), Path("fresh_bot".to_string())).await;
+        assert!(result.is_ok());
+
+        let response = result.unwrap();
+        let body = response.into_body();
+        let bytes = body.collect().await.unwrap().to_bytes();
+        let html = String::from_utf8(bytes.to_vec()).unwrap();
+
+        // Win rate should be 0.0% for zero games
+        assert!(html.contains("0.0%"));
+    }
+
+    #[tokio::test]
+    async fn test_export_bot_html_structure() {
+        let state = test_state();
+        insert_bot_with_stats(&state, "test_bot", 1500, 10, 5, 3, 2);
+
+        let result = export_bot(State(state), Path("test_bot".to_string())).await;
+        assert!(result.is_ok());
+
+        let response = result.unwrap();
+        let body = response.into_body();
+        let bytes = body.collect().await.unwrap().to_bytes();
+        let html = String::from_utf8(bytes.to_vec()).unwrap();
+
+        // Check HTML structure
+        assert!(html.contains("<!DOCTYPE html>"));
+        assert!(html.contains("<html"));
+        assert!(html.contains("<head>"));
+        assert!(html.contains("<body>"));
+        assert!(html.contains("Bot Profile:") || html.contains("test_bot"));
     }
 }
