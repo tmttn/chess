@@ -283,4 +283,180 @@ mod tests {
             match_id: "test".to_string(),
         });
     }
+
+    #[test]
+    fn test_broadcast_channel_multiple_subscribers() {
+        let tx = create_broadcast();
+        let mut rx1 = tx.subscribe();
+        let mut rx2 = tx.subscribe();
+
+        let msg = WsMessage::Move {
+            match_id: "match-1".to_string(),
+            uci: "e2e4".to_string(),
+            centipawns: None,
+        };
+
+        tx.send(msg.clone()).unwrap();
+
+        // Both receivers should get the message
+        let received1 = rx1.try_recv().unwrap();
+        let received2 = rx2.try_recv().unwrap();
+
+        match (received1, received2) {
+            (WsMessage::Move { uci: uci1, .. }, WsMessage::Move { uci: uci2, .. }) => {
+                assert_eq!(uci1, "e2e4");
+                assert_eq!(uci2, "e2e4");
+            }
+            _ => panic!("Expected Move messages"),
+        }
+    }
+
+    #[test]
+    fn test_broadcast_channel_lagged_receiver() {
+        let tx = create_broadcast();
+        let mut rx = tx.subscribe();
+
+        // Send more messages than channel capacity (100)
+        for i in 0..150 {
+            let _ = tx.send(WsMessage::Move {
+                match_id: format!("match-{}", i),
+                uci: "e2e4".to_string(),
+                centipawns: None,
+            });
+        }
+
+        // First receive should indicate lag
+        let result = rx.try_recv();
+        assert!(result.is_err()); // Lagged error
+    }
+
+    #[test]
+    fn test_ws_message_game_end_deserialization() {
+        let json = r#"{"type":"game_end","match_id":"m1","result":"1-0","game_num":5}"#;
+        let msg: WsMessage = serde_json::from_str(json).unwrap();
+
+        match msg {
+            WsMessage::GameEnd {
+                match_id,
+                result,
+                game_num,
+            } => {
+                assert_eq!(match_id, "m1");
+                assert_eq!(result, "1-0");
+                assert_eq!(game_num, 5);
+            }
+            _ => panic!("Expected GameEnd message"),
+        }
+    }
+
+    #[test]
+    fn test_ws_message_match_end_deserialization() {
+        let json = r#"{"type":"match_end","match_id":"m1","score":"6-4"}"#;
+        let msg: WsMessage = serde_json::from_str(json).unwrap();
+
+        match msg {
+            WsMessage::MatchEnd { match_id, score } => {
+                assert_eq!(match_id, "m1");
+                assert_eq!(score, "6-4");
+            }
+            _ => panic!("Expected MatchEnd message"),
+        }
+    }
+
+    #[test]
+    fn test_ws_message_match_started_deserialization() {
+        let json = r#"{"type":"match_started","match_id":"m1","white":"Bot1","black":"Bot2"}"#;
+        let msg: WsMessage = serde_json::from_str(json).unwrap();
+
+        match msg {
+            WsMessage::MatchStarted {
+                match_id,
+                white,
+                black,
+            } => {
+                assert_eq!(match_id, "m1");
+                assert_eq!(white, "Bot1");
+                assert_eq!(black, "Bot2");
+            }
+            _ => panic!("Expected MatchStarted message"),
+        }
+    }
+
+    #[test]
+    fn test_ws_message_unsubscribe_deserialization() {
+        let json = r#"{"type":"unsubscribe","match_id":"abc-123"}"#;
+        let msg: WsMessage = serde_json::from_str(json).unwrap();
+
+        match msg {
+            WsMessage::Unsubscribe { match_id } => {
+                assert_eq!(match_id, "abc-123");
+            }
+            _ => panic!("Expected Unsubscribe message"),
+        }
+    }
+
+    #[test]
+    fn test_ws_message_invalid_json() {
+        let json = r#"{"type":"invalid","data":"test"}"#;
+        let result = serde_json::from_str::<WsMessage>(json);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_ws_message_missing_fields() {
+        let json = r#"{"type":"move","match_id":"m1"}"#;
+        let result = serde_json::from_str::<WsMessage>(json);
+        assert!(result.is_err()); // Missing 'uci' field
+    }
+
+    /// Helper to extract match_id from a WsMessage.
+    fn get_match_id(msg: &WsMessage) -> Option<&str> {
+        match msg {
+            WsMessage::Move { match_id, .. } => Some(match_id),
+            WsMessage::GameEnd { match_id, .. } => Some(match_id),
+            WsMessage::MatchEnd { match_id, .. } => Some(match_id),
+            WsMessage::MatchStarted { match_id, .. } => Some(match_id),
+            WsMessage::Subscribe { .. } | WsMessage::Unsubscribe { .. } => None,
+        }
+    }
+
+    #[test]
+    fn test_get_match_id_helper() {
+        let move_msg = WsMessage::Move {
+            match_id: "m1".to_string(),
+            uci: "e2e4".to_string(),
+            centipawns: None,
+        };
+        assert_eq!(get_match_id(&move_msg), Some("m1"));
+
+        let sub_msg = WsMessage::Subscribe {
+            match_id: "m2".to_string(),
+        };
+        assert_eq!(get_match_id(&sub_msg), None);
+
+        let unsub_msg = WsMessage::Unsubscribe {
+            match_id: "m3".to_string(),
+        };
+        assert_eq!(get_match_id(&unsub_msg), None);
+
+        let game_end = WsMessage::GameEnd {
+            match_id: "m4".to_string(),
+            result: "1-0".to_string(),
+            game_num: 1,
+        };
+        assert_eq!(get_match_id(&game_end), Some("m4"));
+
+        let match_end = WsMessage::MatchEnd {
+            match_id: "m5".to_string(),
+            score: "5-5".to_string(),
+        };
+        assert_eq!(get_match_id(&match_end), Some("m5"));
+
+        let match_started = WsMessage::MatchStarted {
+            match_id: "m6".to_string(),
+            white: "W".to_string(),
+            black: "B".to_string(),
+        };
+        assert_eq!(get_match_id(&match_started), Some("m6"));
+    }
 }
