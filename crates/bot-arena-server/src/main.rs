@@ -81,6 +81,7 @@ async fn main() {
 
     let app = Router::new()
         .route("/health", get(health))
+        .route("/api/analysis", get(api::analysis::get_analysis))
         .route("/api/bots", get(api::bots::list_bots))
         .route("/api/bots/:name", get(api::bots::get_bot))
         .route(
