@@ -16,8 +16,10 @@ mod ws;
 
 use axum::routing::get;
 use axum::Router;
+use bot_arena::config::ArenaConfig;
 use db::DbPool;
 use std::net::SocketAddr;
+use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::ServeDir;
 
@@ -29,7 +31,9 @@ pub struct AppState {
     /// WebSocket broadcast channel for live match updates.
     pub ws_broadcast: ws::WsBroadcast,
     /// Stockfish engine pool for position analysis.
-    pub engine_pool: Option<std::sync::Arc<analysis::EnginePool>>,
+    pub engine_pool: Option<Arc<analysis::EnginePool>>,
+    /// Arena configuration including presets.
+    pub config: Arc<ArenaConfig>,
 }
 
 /// Health check endpoint.
@@ -52,13 +56,21 @@ async fn main() {
     // Create engine pool if STOCKFISH_PATH is set
     let engine_pool = std::env::var("STOCKFISH_PATH").ok().map(|path| {
         tracing::info!("Stockfish analysis enabled: {}", path);
-        std::sync::Arc::new(analysis::EnginePool::new(path, 2)) // Pool size of 2
+        Arc::new(analysis::EnginePool::new(path, 2)) // Pool size of 2
     });
+
+    // Load arena configuration
+    let config = ArenaConfig::load().unwrap_or_else(|e| {
+        tracing::warn!("Failed to load arena config: {}, using defaults", e);
+        ArenaConfig::default()
+    });
+    tracing::info!("Loaded {} presets from config", config.presets.len());
 
     let state = AppState {
         db,
         ws_broadcast,
         engine_pool,
+        config: Arc::new(config),
     };
 
     // Spawn move watcher for live updates
@@ -94,6 +106,7 @@ async fn main() {
         .route("/api/export/game/:id", get(api::export::export_game))
         .route("/api/export/bot/:name", get(api::export::export_bot))
         .route("/api/openings", get(api::openings::list_openings))
+        .route("/api/presets", get(api::presets::list_presets))
         .route("/api/stats/head-to-head", get(api::stats::head_to_head))
         .with_state(state)
         .merge(ws_router)

@@ -54,6 +54,8 @@ mod tests {
     use super::*;
     use crate::db::init_db;
     use crate::ws;
+    use bot_arena::config::ArenaConfig;
+    use std::sync::Arc;
 
     fn test_state() -> AppState {
         let db = init_db(":memory:").expect("Failed to init test db");
@@ -62,6 +64,7 @@ mod tests {
             db,
             ws_broadcast,
             engine_pool: None,
+            config: Arc::new(ArenaConfig::default()),
         }
     }
 
