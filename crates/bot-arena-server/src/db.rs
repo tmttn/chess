@@ -80,6 +80,9 @@ pub fn init_db<P: AsRef<Path>>(path: P) -> SqliteResult<DbPool> {
 
         CREATE INDEX IF NOT EXISTS idx_games_match ON games(match_id);
         CREATE INDEX IF NOT EXISTS idx_moves_game ON moves(game_id);
+        CREATE INDEX IF NOT EXISTS idx_matches_status ON matches(status);
+        CREATE INDEX IF NOT EXISTS idx_matches_white_bot ON matches(white_bot);
+        CREATE INDEX IF NOT EXISTS idx_matches_black_bot ON matches(black_bot);
 
         CREATE TABLE IF NOT EXISTS elo_history (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -137,6 +140,9 @@ mod tests {
 
         assert!(indexes.contains(&"idx_games_match".to_string()));
         assert!(indexes.contains(&"idx_moves_game".to_string()));
+        assert!(indexes.contains(&"idx_matches_status".to_string()));
+        assert!(indexes.contains(&"idx_matches_white_bot".to_string()));
+        assert!(indexes.contains(&"idx_matches_black_bot".to_string()));
         assert!(indexes.contains(&"idx_elo_history_bot".to_string()));
     }
 
