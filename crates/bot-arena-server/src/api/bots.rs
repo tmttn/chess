@@ -6,7 +6,7 @@ use axum::{
     Json,
 };
 
-use crate::models::Bot;
+use crate::models::{Bot, BotProfile};
 use crate::repo::BotRepo;
 use crate::AppState;
 
@@ -27,7 +27,7 @@ pub async fn list_bots(State(state): State<AppState>) -> Result<Json<Vec<Bot>>, 
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
-/// Get a single bot by name.
+/// Get a bot profile by name, including Elo history.
 ///
 /// # Endpoint
 ///
@@ -35,15 +35,15 @@ pub async fn list_bots(State(state): State<AppState>) -> Result<Json<Vec<Bot>>, 
 ///
 /// # Response
 ///
-/// - `200 OK`: JSON bot object
+/// - `200 OK`: JSON bot profile object with Elo history
 /// - `404 Not Found`: Bot with given name doesn't exist
 /// - `500 Internal Server Error`: Database error
 pub async fn get_bot(
     State(state): State<AppState>,
     Path(name): Path<String>,
-) -> Result<Json<Bot>, StatusCode> {
+) -> Result<Json<BotProfile>, StatusCode> {
     let repo = BotRepo::new(state.db.clone());
-    repo.get(&name)
+    repo.get_profile(&name)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .map(Json)
         .ok_or(StatusCode::NOT_FOUND)
@@ -103,7 +103,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_bot_found() {
+    async fn test_get_bot_profile_found() {
         let state = test_state();
 
         // Insert test data
@@ -118,16 +118,60 @@ mod tests {
 
         let result = get_bot(State(state), Path("stockfish".to_string())).await;
         assert!(result.is_ok());
-        let Json(bot) = result.unwrap();
-        assert_eq!(bot.name, "stockfish");
-        assert_eq!(bot.elo_rating, 2000);
+        let Json(profile) = result.unwrap();
+        assert_eq!(profile.name, "stockfish");
+        assert_eq!(profile.elo_rating, 2000);
+        assert!(profile.elo_history.is_empty());
     }
 
     #[tokio::test]
-    async fn test_get_bot_not_found() {
+    async fn test_get_bot_profile_not_found() {
         let state = test_state();
         let result = get_bot(State(state), Path("nonexistent".to_string())).await;
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn test_get_bot_profile_with_elo_history() {
+        let state = test_state();
+
+        // Insert test data with Elo history
+        {
+            let conn = state.db.lock().unwrap();
+            conn.execute(
+                "INSERT INTO bots (name, elo_rating) VALUES ('stockfish', 1600)",
+                [],
+            )
+            .unwrap();
+            // Add some Elo history entries
+            conn.execute(
+                "INSERT INTO elo_history (bot_name, elo_rating, recorded_at) VALUES ('stockfish', 1500, '2025-01-01T10:00:00')",
+                [],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO elo_history (bot_name, elo_rating, recorded_at) VALUES ('stockfish', 1550, '2025-01-02T10:00:00')",
+                [],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO elo_history (bot_name, elo_rating, recorded_at) VALUES ('stockfish', 1600, '2025-01-03T10:00:00')",
+                [],
+            )
+            .unwrap();
+        }
+
+        let result = get_bot(State(state), Path("stockfish".to_string())).await;
+        assert!(result.is_ok());
+        let Json(profile) = result.unwrap();
+        assert_eq!(profile.name, "stockfish");
+        assert_eq!(profile.elo_rating, 1600);
+        assert_eq!(profile.elo_history.len(), 3);
+        // Verify history is ordered by timestamp ascending
+        assert_eq!(profile.elo_history[0].elo, 1500);
+        assert_eq!(profile.elo_history[0].timestamp, "2025-01-01T10:00:00");
+        assert_eq!(profile.elo_history[1].elo, 1550);
+        assert_eq!(profile.elo_history[2].elo, 1600);
     }
 }

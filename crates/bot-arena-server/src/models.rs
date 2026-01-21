@@ -19,6 +19,34 @@ pub struct Bot {
     pub draws: i32,
 }
 
+/// Bot profile with detailed statistics and Elo history.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BotProfile {
+    /// Unique bot name/identifier.
+    pub name: String,
+    /// Current Elo rating.
+    pub elo_rating: i32,
+    /// Total number of games played.
+    pub games_played: i32,
+    /// Number of games won.
+    pub wins: i32,
+    /// Number of games drawn.
+    pub draws: i32,
+    /// Number of games lost.
+    pub losses: i32,
+    /// Historical Elo rating data points.
+    pub elo_history: Vec<EloHistoryPoint>,
+}
+
+/// A single point in the Elo history timeline.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EloHistoryPoint {
+    /// Elo rating at this point in time.
+    pub elo: i32,
+    /// Timestamp when this rating was recorded.
+    pub timestamp: String,
+}
+
 impl Bot {
     /// Calculate win rate as a value between 0.0 and 1.0.
     ///
