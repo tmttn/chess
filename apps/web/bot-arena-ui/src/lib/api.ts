@@ -84,6 +84,18 @@ export interface AnalysisResult {
   pv: string[];
 }
 
+/** Match preset configuration */
+export interface Preset {
+  /** Preset name identifier */
+  name: string;
+  /** Number of games in the preset */
+  games: number;
+  /** Time control string (e.g., "movetime 100") */
+  time_control: string;
+  /** Human-readable description of the preset */
+  description: string;
+}
+
 /** Request body for creating a new match */
 export interface CreateMatchRequest {
   /** Name of the bot playing as white */
@@ -219,5 +231,13 @@ export const api = {
    */
   getHeadToHead(): Promise<HeadToHeadMatrix> {
     return fetchJson('/stats/head-to-head');
+  },
+
+  /**
+   * Get available match presets
+   * @returns List of preset configurations
+   */
+  getPresets(): Promise<Preset[]> {
+    return fetchJson('/presets');
   },
 };

@@ -1,10 +1,11 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { api } from '$lib/api';
+  import { api, type Preset } from '$lib/api';
   import type { Bot } from '$lib/types';
 
   let bots: Bot[] = $state([]);
+  let presets = $state<Preset[]>([]);
+  let selectedPreset = $state('custom');
   let whiteBot = $state('');
   let blackBot = $state('');
   let games = $state(10);
@@ -13,19 +14,38 @@
   let error = $state<string | null>(null);
   let loading = $state(true);
 
-  onMount(async () => {
-    try {
-      bots = await api.getBots();
-      if (bots.length >= 2) {
-        whiteBot = bots[0].name;
-        blackBot = bots[1].name;
-      }
-    } catch (e) {
-      error = e instanceof Error ? e.message : 'Failed to load bots';
-    } finally {
-      loading = false;
-    }
+  // Load bots and presets on mount
+  $effect(() => {
+    Promise.all([api.getBots(), api.getPresets()])
+      .then(([loadedBots, loadedPresets]) => {
+        bots = loadedBots;
+        presets = loadedPresets;
+        if (bots.length >= 2) {
+          whiteBot = bots[0].name;
+          blackBot = bots[1].name;
+        }
+      })
+      .catch((e) => {
+        error = e instanceof Error ? e.message : 'Failed to load data';
+      })
+      .finally(() => {
+        loading = false;
+      });
   });
+
+  function applyPreset(presetName: string) {
+    if (presetName === 'custom') return;
+
+    const preset = presets.find((p) => p.name === presetName);
+    if (preset) {
+      games = preset.games;
+      // Parse movetime from time_control string like "movetime 100"
+      const match = preset.time_control.match(/movetime\s+(\d+)/);
+      if (match) {
+        movetime = parseInt(match[1], 10);
+      }
+    }
+  }
 
   async function handleSubmit(e: Event) {
     e.preventDefault();
@@ -80,7 +100,27 @@
       </div>
 
       <div class="field">
-        <label for="games">Number of Games</label>
+        <label for="preset">Preset</label>
+        <select
+          id="preset"
+          bind:value={selectedPreset}
+          onchange={() => applyPreset(selectedPreset)}
+          disabled={submitting}
+        >
+          <option value="custom">Custom</option>
+          {#each presets as preset}
+            <option value={preset.name}>{preset.name} - {preset.description}</option>
+          {/each}
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="games">
+          Number of Games
+          {#if selectedPreset !== 'custom'}
+            <span class="preset-badge">from {selectedPreset}</span>
+          {/if}
+        </label>
         <input
           type="number"
           id="games"
@@ -88,11 +128,19 @@
           min="1"
           max="100"
           disabled={submitting}
+          oninput={() => {
+            selectedPreset = 'custom';
+          }}
         />
       </div>
 
       <div class="field">
-        <label for="movetime">Move Time (ms)</label>
+        <label for="movetime">
+          Move Time (ms)
+          {#if selectedPreset !== 'custom'}
+            <span class="preset-badge">from {selectedPreset}</span>
+          {/if}
+        </label>
         <input
           type="number"
           id="movetime"
@@ -101,6 +149,9 @@
           max="60000"
           step="100"
           disabled={submitting}
+          oninput={() => {
+            selectedPreset = 'custom';
+          }}
         />
       </div>
 
@@ -195,5 +246,14 @@
   .error {
     color: var(--highlight);
     font-size: 0.875rem;
+  }
+
+  .preset-badge {
+    font-size: 0.75rem;
+    background: var(--highlight);
+    color: var(--bg);
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    margin-left: 0.5rem;
   }
 </style>
