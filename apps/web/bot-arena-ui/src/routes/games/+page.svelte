@@ -5,13 +5,17 @@
 
   let matches: Match[] = $state([]);
   let loading = $state(true);
+  let error = $state<string | null>(null);
   let offset = $state(0);
   const limit = 20;
 
   async function loadMatches() {
     loading = true;
+    error = null;
     try {
       matches = await api.getMatches({ limit, offset });
+    } catch (e) {
+      error = e instanceof Error ? e.message : 'Failed to load matches';
     } finally {
       loading = false;
     }
@@ -45,6 +49,8 @@
 
   {#if loading}
     <p class="loading">Loading...</p>
+  {:else if error}
+    <p class="error">{error}</p>
   {:else}
     <table>
       <thead>
@@ -127,8 +133,12 @@
     cursor: not-allowed;
   }
 
-  .loading {
+  .loading, .error {
     text-align: center;
     padding: 2rem;
+  }
+
+  .error {
+    color: var(--highlight);
   }
 </style>
