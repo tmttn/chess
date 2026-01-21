@@ -193,8 +193,6 @@ pub async fn create_match(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    // TODO: Trigger match runner (Phase G)
-
     Ok(Json(match_info))
 }
 

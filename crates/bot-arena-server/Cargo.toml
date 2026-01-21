@@ -8,6 +8,7 @@ license.workspace = true
 askama = "0.12"
 axum = { version = "0.7", features = ["ws"] }
 bot-arena = { path = "../bot-arena" }
+chess-openings = { path = "../chess-openings" }
 futures-util = "0.3"
 tokio.workspace = true
 tower = "0.4"

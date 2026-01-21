@@ -3,9 +3,22 @@
 //! Provides endpoints to retrieve chess opening statistics from played games.
 
 use axum::{extract::State, http::StatusCode, Json};
+use chess_openings::{builtin::builtin_openings, OpeningDatabase};
 use serde::Serialize;
 
 use crate::AppState;
+
+/// Looks up the ECO code for an opening by name.
+///
+/// Uses the built-in opening database to find the ECO code for a given opening name.
+/// Returns an empty string if the opening is not found or has no ECO code.
+fn lookup_eco(db: &OpeningDatabase, name: &str) -> String {
+    db.search(name)
+        .into_iter()
+        .find(|o| o.name == name)
+        .and_then(|o| o.eco.clone())
+        .unwrap_or_default()
+}
 
 /// Statistics for a chess opening.
 ///
@@ -45,6 +58,9 @@ pub async fn list_openings(
 ) -> Result<Json<Vec<OpeningStats>>, (StatusCode, String)> {
     let conn = state.db.lock().unwrap();
 
+    // Load the opening database for ECO code lookup
+    let opening_db = OpeningDatabase::with_openings(builtin_openings());
+
     let mut stmt = conn
         .prepare(
             "SELECT
@@ -62,17 +78,22 @@ pub async fn list_openings(
 
     let openings = stmt
         .query_map([], |row| {
-            Ok(OpeningStats {
-                eco: String::new(), // TODO: lookup ECO code from opening database
-                name: row.get(0)?,
-                games_played: row.get(1)?,
-                white_wins: row.get(2)?,
-                black_wins: row.get(3)?,
-                draws: row.get(4)?,
-            })
+            let name: String = row.get(0)?;
+            Ok((name, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?))
         })
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
         .filter_map(|r| r.ok())
+        .map(|(name, games_played, white_wins, black_wins, draws)| {
+            let eco = lookup_eco(&opening_db, &name);
+            OpeningStats {
+                eco,
+                name,
+                games_played,
+                white_wins,
+                black_wins,
+                draws,
+            }
+        })
         .collect();
 
     Ok(Json(openings))
