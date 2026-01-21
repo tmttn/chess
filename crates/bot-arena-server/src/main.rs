@@ -9,11 +9,13 @@ mod analysis;
 mod api;
 mod db;
 mod elo;
+mod middleware;
 mod models;
 mod repo;
 mod watcher;
 mod ws;
 
+use axum::middleware as axum_middleware;
 use axum::routing::get;
 use axum::Router;
 use bot_arena::config::ArenaConfig;
@@ -110,6 +112,7 @@ async fn main() {
         .route("/api/stats/head-to-head", get(api::stats::head_to_head))
         .with_state(state)
         .merge(ws_router)
+        .layer(axum_middleware::from_fn(middleware::timing_layer))
         .layer(cors)
         .fallback_service(ServeDir::new("static").append_index_html_on_directories(true));
 
