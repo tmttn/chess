@@ -1,3 +1,4 @@
 packages:
   - "packages/*"
   - "apps/web/chess-devtools/svelte-test-ui"
+  - "apps/web/bot-arena-ui"
