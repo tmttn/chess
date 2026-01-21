@@ -583,6 +583,7 @@ mod tests {
         presets.insert(
             "test-preset".to_string(),
             PresetConfig {
+                description: String::new(),
                 games: 42,
                 time_control: "movetime 200".to_string(),
                 openings: vec![],

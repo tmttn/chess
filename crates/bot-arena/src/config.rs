@@ -49,6 +49,9 @@ fn default_time_control() -> String {
 /// opening positions, and time controls.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct PresetConfig {
+    /// Human-readable description of the preset.
+    #[serde(default)]
+    pub description: String,
     /// Number of games to play in a match. Defaults to 10.
     #[serde(default = "default_games")]
     pub games: u32,
@@ -281,6 +284,7 @@ time_control = "movetime 200"
     #[test]
     fn test_preset_config_serialization_roundtrip() {
         let preset = PresetConfig {
+            description: "Test preset description".to_string(),
             games: 50,
             openings: vec!["e4".to_string(), "d4".to_string()],
             time_control: "wtime 60000 btime 60000".to_string(),
@@ -289,6 +293,7 @@ time_control = "movetime 200"
         let serialized = toml::to_string(&preset).unwrap();
         let deserialized: PresetConfig = toml::from_str(&serialized).unwrap();
 
+        assert_eq!(deserialized.description, preset.description);
         assert_eq!(deserialized.games, preset.games);
         assert_eq!(deserialized.openings, preset.openings);
         assert_eq!(deserialized.time_control, preset.time_control);

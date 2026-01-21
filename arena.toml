@@ -12,15 +12,19 @@ time_control = "movetime 100"
 [presets.quick]
 games = 10
 time_control = "movetime 100"
+description = "Fast test run (10 games, 100ms/move)"
 
 [presets.standard]
 games = 100
 time_control = "movetime 500"
+description = "Standard comparison (100 games, 500ms/move)"
 
 [presets.thorough]
 games = 1000
 time_control = "movetime 500"
+description = "Deep analysis (1000 games, 500ms/move)"
 
 [presets.elo-test]
-games = 500
+games = 10000
 time_control = "movetime 1000"
+description = "Elo calibration (10000 games, 1s/move)"
