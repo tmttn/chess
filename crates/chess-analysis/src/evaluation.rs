@@ -21,7 +21,7 @@ pub enum Evaluation {
 impl Evaluation {
     /// Parses evaluation from UCI info score.
     ///
-    /// UCI engines report scores as either "score cp <value>" or "score mate <value>".
+    /// UCI engines report scores as either "score cp `<value>`" or "score mate `<value>`".
     /// If both are provided, mate takes precedence.
     ///
     /// # Arguments

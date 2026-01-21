@@ -318,7 +318,7 @@ impl OpeningDatabase {
 
     /// Returns all openings whose moves are a prefix of the provided sequence.
     ///
-    /// Unlike [`find_by_moves`], this returns all matching openings, not just the longest.
+    /// Unlike [`find_by_moves`](Self::find_by_moves), this returns all matching openings, not just the longest.
     /// Results are sorted by move count in descending order (longest first).
     ///
     /// # Arguments
