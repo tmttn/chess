@@ -5,11 +5,15 @@
 //! - WebSocket for live match updates
 //! - Static files for the SvelteKit frontend
 
-// Module will be used in subsequent tasks when API endpoints are added.
-// Justification: Incremental development - db module is complete and tested,
+// Modules will be used in subsequent tasks when API endpoints are added.
+// Justification: Incremental development - modules are complete and tested,
 // but integration with Axum routes comes in a later task.
 #[allow(unused)]
 mod db;
+#[allow(unused)]
+mod models;
+#[allow(unused)]
+mod repo;
 
 use axum::{routing::get, Router};
 use std::net::SocketAddr;
