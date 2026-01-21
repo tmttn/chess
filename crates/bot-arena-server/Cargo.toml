@@ -1,18 +1,19 @@
 [package]
 name = "bot-arena-server"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
 axum = "0.7"
-tokio = { version = "1", features = ["full"] }
+tokio.workspace = true
 tower = "0.4"
 tower-http = { version = "0.5", features = ["cors", "fs"] }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+serde.workspace = true
+serde_json.workspace = true
 rusqlite = { version = "0.31", features = ["bundled"] }
 uuid = { version = "1", features = ["v4"] }
 chrono = { version = "0.4", features = ["serde"] }
-thiserror = "1"
+thiserror.workspace = true
 tracing = "0.1"
 tracing-subscriber = "0.3"

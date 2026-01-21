@@ -22,10 +22,12 @@ async fn main() {
     let app = Router::new().route("/health", get(health));
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
-    println!("Server running on http://{}", addr);
+    tracing::info!("Server running on http://{}", addr);
 
-    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    let listener = tokio::net::TcpListener::bind(addr)
+        .await
+        .expect("Failed to bind to address");
+    axum::serve(listener, app).await.expect("Server error");
 }
 
 #[cfg(test)]
