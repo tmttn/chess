@@ -2,9 +2,14 @@
 //!
 //! Provides endpoints to retrieve chess opening statistics from played games.
 
-use axum::{extract::State, http::StatusCode, Json};
+use axum::{
+    extract::State,
+    http::{header, StatusCode},
+    response::IntoResponse,
+    Json,
+};
 use chess_openings::{builtin::builtin_openings, OpeningDatabase};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::AppState;
 
@@ -24,7 +29,7 @@ fn lookup_eco(db: &OpeningDatabase, name: &str) -> String {
 ///
 /// Contains aggregated data about how an opening has performed across all games
 /// in the database.
-#[derive(Debug, Clone, Serialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct OpeningStats {
     /// ECO (Encyclopedia of Chess Openings) code, if available.
     pub eco: String,
@@ -53,17 +58,18 @@ pub struct OpeningStats {
 ///
 /// - `200 OK`: JSON array of opening statistics
 /// - `500 Internal Server Error`: Database error
-pub async fn list_openings(
-    State(state): State<AppState>,
-) -> Result<Json<Vec<OpeningStats>>, (StatusCode, String)> {
+///
+/// # Caching
+///
+/// Response is cached for 24 hours (opening data changes infrequently).
+pub async fn list_openings(State(state): State<AppState>) -> impl IntoResponse {
     let conn = state.db.lock().unwrap();
 
     // Load the opening database for ECO code lookup
     let opening_db = OpeningDatabase::with_openings(builtin_openings());
 
-    let mut stmt = conn
-        .prepare(
-            "SELECT
+    let stmt_result = conn.prepare(
+        "SELECT
                 g.opening_name as name,
                 COUNT(*) as games,
                 SUM(CASE WHEN g.result = '1-0' THEN 1 ELSE 0 END) as white_wins,
@@ -73,30 +79,46 @@ pub async fn list_openings(
              WHERE g.opening_name IS NOT NULL
              GROUP BY g.opening_name
              ORDER BY games DESC",
-        )
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    );
 
-    let openings = stmt
-        .query_map([], |row| {
-            let name: String = row.get(0)?;
-            Ok((name, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?))
-        })
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-        .filter_map(|r| r.ok())
-        .map(|(name, games_played, white_wins, black_wins, draws)| {
-            let eco = lookup_eco(&opening_db, &name);
-            OpeningStats {
-                eco,
-                name,
-                games_played,
-                white_wins,
-                black_wins,
-                draws,
-            }
-        })
-        .collect();
+    let mut stmt = match stmt_result {
+        Ok(s) => s,
+        Err(e) => {
+            return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
+        }
+    };
 
-    Ok(Json(openings))
+    let query_result = stmt.query_map([], |row| {
+        let name: String = row.get(0)?;
+        Ok((name, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?))
+    });
+
+    let openings: Vec<OpeningStats> = match query_result {
+        Ok(rows) => rows
+            .filter_map(|r| r.ok())
+            .map(|(name, games_played, white_wins, black_wins, draws)| {
+                let eco = lookup_eco(&opening_db, &name);
+                OpeningStats {
+                    eco,
+                    name,
+                    games_played,
+                    white_wins,
+                    black_wins,
+                    draws,
+                }
+            })
+            .collect(),
+        Err(e) => {
+            return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
+        }
+    };
+
+    (
+        StatusCode::OK,
+        [(header::CACHE_CONTROL, "public, max-age=86400")], // 24 hours
+        Json(openings),
+    )
+        .into_response()
 }
 
 #[cfg(test)]
@@ -104,6 +126,7 @@ mod tests {
     use super::*;
     use crate::db::init_db;
     use crate::ws;
+    use axum::body::to_bytes;
     use bot_arena::config::ArenaConfig;
     use std::sync::Arc;
 
@@ -116,6 +139,16 @@ mod tests {
             engine_pool: None,
             config: Arc::new(ArenaConfig::default()),
         }
+    }
+
+    /// Helper to extract response body as JSON
+    async fn extract_json<T: serde::de::DeserializeOwned>(
+        response: axum::response::Response,
+    ) -> (StatusCode, T) {
+        let status = response.status();
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let json: T = serde_json::from_slice(&body).unwrap();
+        (status, json)
     }
 
     #[test]
@@ -155,9 +188,9 @@ mod tests {
     #[tokio::test]
     async fn test_list_openings_empty() {
         let state = test_state();
-        let result = list_openings(State(state)).await;
-        assert!(result.is_ok());
-        let Json(openings) = result.unwrap();
+        let response = list_openings(State(state)).await.into_response();
+        let (status, openings): (_, Vec<OpeningStats>) = extract_json(response).await;
+        assert_eq!(status, StatusCode::OK);
         assert!(openings.is_empty());
     }
 
@@ -216,9 +249,9 @@ mod tests {
             .unwrap();
         }
 
-        let result = list_openings(State(state)).await;
-        assert!(result.is_ok());
-        let Json(openings) = result.unwrap();
+        let response = list_openings(State(state)).await.into_response();
+        let (status, openings): (_, Vec<OpeningStats>) = extract_json(response).await;
+        assert_eq!(status, StatusCode::OK);
 
         // Should have 2 openings
         assert_eq!(openings.len(), 2);
@@ -274,9 +307,9 @@ mod tests {
             .unwrap();
         }
 
-        let result = list_openings(State(state)).await;
-        assert!(result.is_ok());
-        let Json(openings) = result.unwrap();
+        let response = list_openings(State(state)).await.into_response();
+        let (status, openings): (_, Vec<OpeningStats>) = extract_json(response).await;
+        assert_eq!(status, StatusCode::OK);
 
         // Should only have 1 opening (NULL opening_name is excluded)
         assert_eq!(openings.len(), 1);
@@ -320,9 +353,9 @@ mod tests {
             .unwrap();
         }
 
-        let result = list_openings(State(state)).await;
-        assert!(result.is_ok());
-        let Json(openings) = result.unwrap();
+        let response = list_openings(State(state)).await.into_response();
+        let (status, openings): (_, Vec<OpeningStats>) = extract_json(response).await;
+        assert_eq!(status, StatusCode::OK);
 
         // Should have 1 opening with 2 games total
         assert_eq!(openings.len(), 1);
@@ -332,5 +365,18 @@ mod tests {
         assert_eq!(openings[0].white_wins, 1);
         assert_eq!(openings[0].black_wins, 0);
         assert_eq!(openings[0].draws, 0);
+    }
+
+    #[tokio::test]
+    async fn test_list_openings_cache_header() {
+        let state = test_state();
+        let response = list_openings(State(state)).await.into_response();
+
+        // Check Cache-Control header is set correctly
+        let cache_control = response
+            .headers()
+            .get(header::CACHE_CONTROL)
+            .expect("Cache-Control header should be present");
+        assert_eq!(cache_control, "public, max-age=86400");
     }
 }

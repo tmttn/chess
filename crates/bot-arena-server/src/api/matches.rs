@@ -2,7 +2,8 @@
 
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
+    http::{header, StatusCode},
+    response::IntoResponse,
     Json,
 };
 use serde::{Deserialize, Serialize};
@@ -55,7 +56,7 @@ pub async fn list_matches(
 }
 
 /// Match with full game details.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MatchDetail {
     /// The match information.
     #[serde(flatten)]
@@ -75,22 +76,41 @@ pub struct MatchDetail {
 /// - `200 OK`: JSON match detail object with games
 /// - `404 Not Found`: Match with given ID doesn't exist
 /// - `500 Internal Server Error`: Database error
+///
+/// # Caching
+///
+/// - Completed matches: cached for 1 year (immutable data)
+/// - In-progress matches: no caching (data changes frequently)
 pub async fn get_match_detail(
     State(state): State<AppState>,
     Path(id): Path<String>,
-) -> Result<Json<MatchDetail>, StatusCode> {
+) -> impl IntoResponse {
     let repo = MatchRepo::new(state.db.clone());
 
-    let match_info = repo
-        .get(&id)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-        .ok_or(StatusCode::NOT_FOUND)?;
+    let match_info = match repo.get(&id) {
+        Ok(Some(m)) => m,
+        Ok(None) => return StatusCode::NOT_FOUND.into_response(),
+        Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    };
 
-    let games = repo
-        .get_games(&id)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let games = match repo.get_games(&id) {
+        Ok(g) => g,
+        Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    };
 
-    Ok(Json(MatchDetail { match_info, games }))
+    // Use long cache for completed matches, no cache for in-progress
+    let cache_header = if match_info.status == "completed" {
+        "public, max-age=31536000, immutable" // 1 year for completed
+    } else {
+        "no-cache, no-store" // Don't cache in-progress
+    };
+
+    (
+        StatusCode::OK,
+        [(header::CACHE_CONTROL, cache_header)],
+        Json(MatchDetail { match_info, games }),
+    )
+        .into_response()
 }
 
 /// Get all moves for a game.
@@ -201,6 +221,7 @@ mod tests {
     use super::*;
     use crate::db::init_db;
     use crate::ws;
+    use axum::body::to_bytes;
     use bot_arena::config::ArenaConfig;
     use std::sync::Arc;
 
@@ -213,6 +234,16 @@ mod tests {
             engine_pool: None,
             config: Arc::new(ArenaConfig::default()),
         }
+    }
+
+    /// Helper to extract response body as JSON
+    async fn extract_json<T: serde::de::DeserializeOwned>(
+        response: axum::response::Response,
+    ) -> (StatusCode, T) {
+        let status = response.status();
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let json: T = serde_json::from_slice(&body).unwrap();
+        (status, json)
     }
 
     fn setup_test_data(state: &AppState) {
@@ -386,9 +417,11 @@ mod tests {
         insert_game(&state, "game1", "match1", 1, Some("1-0"));
         insert_game(&state, "game2", "match1", 2, Some("0-1"));
 
-        let result = get_match_detail(State(state), Path("match1".to_string())).await;
-        assert!(result.is_ok());
-        let Json(detail) = result.unwrap();
+        let response = get_match_detail(State(state), Path("match1".to_string()))
+            .await
+            .into_response();
+        let (status, detail): (_, MatchDetail) = extract_json(response).await;
+        assert_eq!(status, StatusCode::OK);
         assert_eq!(detail.match_info.id, "match1");
         assert_eq!(detail.games.len(), 2);
         assert_eq!(detail.games[0].game_number, 1);
@@ -398,9 +431,63 @@ mod tests {
     #[tokio::test]
     async fn test_get_match_detail_not_found() {
         let state = test_state();
-        let result = get_match_detail(State(state), Path("nonexistent".to_string())).await;
-        assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), StatusCode::NOT_FOUND);
+        let response = get_match_detail(State(state), Path("nonexistent".to_string()))
+            .await
+            .into_response();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn test_get_match_detail_cache_header_pending() {
+        let state = test_state();
+        setup_test_data(&state);
+
+        insert_match(
+            &state,
+            "match1",
+            "stockfish",
+            "komodo",
+            "2025-01-21T10:00:00",
+        );
+
+        let response = get_match_detail(State(state), Path("match1".to_string()))
+            .await
+            .into_response();
+
+        // Pending match should have no-cache header
+        let cache_control = response
+            .headers()
+            .get(header::CACHE_CONTROL)
+            .expect("Cache-Control header should be present");
+        assert_eq!(cache_control, "no-cache, no-store");
+    }
+
+    #[tokio::test]
+    async fn test_get_match_detail_cache_header_completed() {
+        let state = test_state();
+        setup_test_data(&state);
+
+        // Insert a completed match
+        {
+            let conn = state.db.lock().unwrap();
+            conn.execute(
+                "INSERT INTO matches (id, white_bot, black_bot, games_total, started_at, status)
+                 VALUES ('match1', 'stockfish', 'komodo', 10, '2025-01-21T10:00:00', 'completed')",
+                [],
+            )
+            .unwrap();
+        }
+
+        let response = get_match_detail(State(state), Path("match1".to_string()))
+            .await
+            .into_response();
+
+        // Completed match should have immutable cache header
+        let cache_control = response
+            .headers()
+            .get(header::CACHE_CONTROL)
+            .expect("Cache-Control header should be present");
+        assert_eq!(cache_control, "public, max-age=31536000, immutable");
     }
 
     #[tokio::test]
