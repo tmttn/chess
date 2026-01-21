@@ -6,15 +6,11 @@ use rusqlite::OptionalExtension;
 use rusqlite::Result as SqliteResult;
 
 /// Repository for match database operations.
-// Justification: Will be used in match API routes (Phase 5, Task 6)
-#[allow(dead_code)]
 pub struct MatchRepo {
     db: DbPool,
 }
 
 /// Filter options for listing matches.
-// Justification: Will be used in match API routes (Phase 5, Task 6)
-#[allow(dead_code)]
 #[derive(Debug)]
 pub struct MatchFilter {
     /// Filter by bot name (matches where bot is white or black).
@@ -35,8 +31,6 @@ impl Default for MatchFilter {
     }
 }
 
-// Justification: Will be used in match API routes (Phase 5, Task 6)
-#[allow(dead_code)]
 impl MatchRepo {
     /// Create a new match repository with the given database pool.
     pub fn new(db: DbPool) -> Self {

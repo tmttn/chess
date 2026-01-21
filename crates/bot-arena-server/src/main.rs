@@ -42,6 +42,9 @@ async fn main() {
         .route("/health", get(health))
         .route("/api/bots", get(api::bots::list_bots))
         .route("/api/bots/:name", get(api::bots::get_bot))
+        .route("/api/matches", get(api::matches::list_matches))
+        .route("/api/matches/:id", get(api::matches::get_match_detail))
+        .route("/api/games/:id/moves", get(api::matches::get_game_moves))
         .with_state(state);
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
