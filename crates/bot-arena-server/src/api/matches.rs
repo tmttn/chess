@@ -117,10 +117,12 @@ pub async fn get_game_moves(
 mod tests {
     use super::*;
     use crate::db::init_db;
+    use crate::ws;
 
     fn test_state() -> AppState {
         let db = init_db(":memory:").expect("Failed to init test db");
-        AppState { db }
+        let ws_broadcast = ws::create_broadcast();
+        AppState { db, ws_broadcast }
     }
 
     fn setup_test_data(state: &AppState) {

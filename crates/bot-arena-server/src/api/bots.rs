@@ -53,10 +53,12 @@ pub async fn get_bot(
 mod tests {
     use super::*;
     use crate::db::init_db;
+    use crate::ws;
 
     fn test_state() -> AppState {
         let db = init_db(":memory:").expect("Failed to init test db");
-        AppState { db }
+        let ws_broadcast = ws::create_broadcast();
+        AppState { db, ws_broadcast }
     }
 
     #[tokio::test]

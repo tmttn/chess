@@ -10,6 +10,7 @@ mod db;
 mod elo;
 mod models;
 mod repo;
+mod ws;
 
 use axum::{routing::get, Router};
 use db::DbPool;
@@ -20,6 +21,8 @@ use std::net::SocketAddr;
 pub struct AppState {
     /// Database connection pool.
     pub db: DbPool,
+    /// WebSocket broadcast channel for live match updates.
+    pub ws_broadcast: ws::WsBroadcast,
 }
 
 /// Health check endpoint.
@@ -37,7 +40,13 @@ async fn main() {
     std::fs::create_dir_all("data").expect("Failed to create data directory");
 
     let db = db::init_db("data/arena.db").expect("Failed to initialize database");
-    let state = AppState { db };
+    let ws_broadcast = ws::create_broadcast();
+    let state = AppState { db, ws_broadcast };
+
+    // WebSocket route with broadcast state
+    let ws_router = Router::new()
+        .route("/ws", get(ws::ws_handler))
+        .with_state(state.ws_broadcast.clone());
 
     let app = Router::new()
         .route("/health", get(health))
@@ -46,7 +55,8 @@ async fn main() {
         .route("/api/matches", get(api::matches::list_matches))
         .route("/api/matches/:id", get(api::matches::get_match_detail))
         .route("/api/games/:id/moves", get(api::matches::get_game_moves))
-        .with_state(state);
+        .with_state(state)
+        .merge(ws_router);
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
     tracing::info!("Server running on http://{}", addr);
