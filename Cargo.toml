@@ -11,6 +11,7 @@ members = [
     "crates/bot-minimax",
     "crates/bot-bridge",
     "crates/bot-arena",
+    "crates/bot-arena-server",
 ]
 
 [workspace.package]
