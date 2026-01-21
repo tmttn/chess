@@ -5,6 +5,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+askama = "0.12"
 axum = { version = "0.7", features = ["ws"] }
 futures-util = "0.3"
 tokio.workspace = true
