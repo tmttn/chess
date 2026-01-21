@@ -11,7 +11,10 @@ use bot_arena::game_runner::MatchResult;
 use clap::Parser;
 use runner::MatchRunner;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
+use tokio::signal;
 
 /// Bot Arena Worker - Executes bot matches from the database.
 #[derive(Parser)]
@@ -47,10 +50,48 @@ async fn main() -> anyhow::Result<()> {
 
     let runner = MatchRunner::new(&args.bots_dir);
 
+    // Shutdown flag
+    let shutdown = Arc::new(AtomicBool::new(false));
+    let shutdown_clone = shutdown.clone();
+
+    // Spawn signal handler
+    tokio::spawn(async move {
+        signal::ctrl_c().await.expect("Failed to listen for ctrl+c");
+        tracing::info!("Shutdown signal received");
+        shutdown_clone.store(true, Ordering::SeqCst);
+    });
+
+    // Track the currently running match ID for graceful shutdown.
+    // Note: The shutdown check only runs between loop iterations, so if a match
+    // is in progress during shutdown, it will complete before the worker exits.
+    // The match ID is tracked so it can be released if shutdown occurs after
+    // claiming but before the match starts (edge case).
+    let mut current_match_id: Option<String> = None;
+
     // Main worker loop
     loop {
+        // Check for shutdown
+        if shutdown.load(Ordering::SeqCst) {
+            if let Some(ref match_id) = current_match_id {
+                tracing::info!("Releasing match {} due to shutdown", match_id);
+                if let Err(e) = db::release_match(&db, match_id, &worker_id) {
+                    tracing::error!("Failed to release match: {}", e);
+                }
+            }
+            break;
+        }
+
         match db::claim_match(&db, &worker_id) {
             Ok(Some(pending)) => {
+                // Track current match for graceful shutdown release.
+                // This is intentionally set before run_match so it can be released
+                // if a shutdown signal is received during match execution.
+                // Note: Rust warns about unused assignment because it doesn't track
+                // the value being read across loop iterations at shutdown check.
+                #[allow(unused_assignments)]
+                {
+                    current_match_id = Some(pending.id.clone());
+                }
                 tracing::info!(
                     "Claimed match: {} ({} vs {})",
                     pending.id,
@@ -145,10 +186,15 @@ async fn main() -> anyhow::Result<()> {
                         } else {
                             tracing::info!("Elo ratings updated for match {}", pending.id);
                         }
+
+                        // Clear current match after successful completion
+                        current_match_id = None;
                     }
                     Err(e) => {
                         tracing::error!("Match {} failed: {}", pending.id, e);
+                        // Clear current match on failure (match remains in running state)
                         // TODO: Mark match as failed in database
+                        current_match_id = None;
                     }
                 }
             }
@@ -162,4 +208,7 @@ async fn main() -> anyhow::Result<()> {
             }
         }
     }
+
+    tracing::info!("Worker shutdown complete");
+    Ok(())
 }

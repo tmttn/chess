@@ -191,6 +191,30 @@ pub fn finish_game(db: &DbPool, game_id: &str, result: &str) -> SqliteResult<()>
     Ok(())
 }
 
+/// Release a match back to pending (e.g., on shutdown).
+///
+/// Sets the match status back to 'pending' and clears the worker_id,
+/// but only if the match is currently claimed by this worker.
+///
+/// # Arguments
+///
+/// * `db` - Database connection pool
+/// * `match_id` - ID of the match to release
+/// * `worker_id` - Worker ID that must currently own the match
+///
+/// # Errors
+///
+/// Returns an error if the database update fails.
+pub fn release_match(db: &DbPool, match_id: &str, worker_id: &str) -> SqliteResult<()> {
+    let conn = db.lock().unwrap();
+    conn.execute(
+        "UPDATE matches SET status = 'pending', worker_id = NULL, started_at = NULL
+         WHERE id = ?1 AND worker_id = ?2 AND status = 'running'",
+        (match_id, worker_id),
+    )?;
+    Ok(())
+}
+
 /// Finish a match with final scores.
 ///
 /// Updates the match status to 'completed' and records the final scores.
@@ -592,5 +616,47 @@ mod tests {
 
         // No games = no change
         assert_eq!(bot1_elo, 1500);
+    }
+
+    #[test]
+    fn test_release_match() {
+        let db = setup_test_db();
+        // Claim the match first
+        claim_match(&db, "worker-1").unwrap();
+
+        // Release it
+        release_match(&db, "match1", "worker-1").unwrap();
+
+        // Verify it's pending again
+        let conn = db.lock().unwrap();
+        let status: String = conn
+            .query_row(
+                "SELECT status FROM matches WHERE id = 'match1'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(status, "pending");
+    }
+
+    #[test]
+    fn test_release_match_wrong_worker() {
+        let db = setup_test_db();
+        // Claim the match with worker-1
+        claim_match(&db, "worker-1").unwrap();
+
+        // Try to release with wrong worker ID - should not change status
+        release_match(&db, "match1", "worker-2").unwrap();
+
+        // Verify it's still running (not released)
+        let conn = db.lock().unwrap();
+        let status: String = conn
+            .query_row(
+                "SELECT status FROM matches WHERE id = 'match1'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(status, "running");
     }
 }
