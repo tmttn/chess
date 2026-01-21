@@ -4,11 +4,6 @@
 //! using the bot-arena game runner. It wraps the bot-arena API to work with
 //! the worker's PendingMatch type and handles color alternation between games.
 
-// This module provides the public API for match execution that will be used
-// by the worker loop implementation in Task 5. Suppressing dead_code warnings
-// during incremental development.
-#![allow(dead_code)]
-
 use crate::db::PendingMatch;
 use bot_arena::game_runner::{GameError, GameResult, GameRunner};
 use bot_arena::uci_client::UciClient;

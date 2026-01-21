@@ -4,10 +4,6 @@
 //! for the worker. The `claim_match` function will be used in the worker loop
 //! implementation (next phase).
 
-// These items are public API that will be used by the worker loop implementation.
-// Suppressing dead_code warnings during incremental development.
-#![allow(dead_code)]
-
 use rusqlite::{Connection, OptionalExtension, Result as SqliteResult};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -40,6 +36,8 @@ pub struct PendingMatch {
     /// Time limit per move in milliseconds.
     pub movetime_ms: i32,
     /// Optional opening position identifier.
+    /// Note: Currently unused but will be used for opening database functionality.
+    #[allow(dead_code)]
     pub opening_id: Option<String>,
 }
 
@@ -114,6 +112,113 @@ pub fn claim_match(db: &DbPool, worker_id: &str) -> SqliteResult<Option<PendingM
     }
 }
 
+/// Create a game record.
+///
+/// # Arguments
+///
+/// * `db` - Database connection pool
+/// * `game_id` - Unique identifier for the game
+/// * `match_id` - ID of the parent match
+/// * `game_number` - Sequential game number within the match (0-indexed)
+///
+/// # Errors
+///
+/// Returns an error if the database insert fails.
+pub fn create_game(
+    db: &DbPool,
+    game_id: &str,
+    match_id: &str,
+    game_number: i32,
+) -> SqliteResult<()> {
+    let conn = db.lock().unwrap();
+    conn.execute(
+        "INSERT INTO games (id, match_id, game_number)
+         VALUES (?1, ?2, ?3)",
+        (game_id, match_id, game_number),
+    )?;
+    Ok(())
+}
+
+/// Insert a move into the database.
+///
+/// # Arguments
+///
+/// * `db` - Database connection pool
+/// * `game_id` - ID of the game this move belongs to
+/// * `ply` - Ply number (0-indexed, 0 = white's first move, 1 = black's first move)
+/// * `uci` - Move in UCI notation (e.g., "e2e4")
+/// * `san` - Optional move in Standard Algebraic Notation
+/// * `fen_after` - FEN string representing the position after the move
+///
+/// # Errors
+///
+/// Returns an error if the database insert fails.
+pub fn insert_move(
+    db: &DbPool,
+    game_id: &str,
+    ply: i32,
+    uci: &str,
+    san: Option<&str>,
+    fen_after: &str,
+) -> SqliteResult<()> {
+    let conn = db.lock().unwrap();
+    conn.execute(
+        "INSERT INTO moves (game_id, ply, uci, san, fen_after)
+         VALUES (?1, ?2, ?3, ?4, ?5)",
+        (game_id, ply, uci, san, fen_after),
+    )?;
+    Ok(())
+}
+
+/// Update game result.
+///
+/// # Arguments
+///
+/// * `db` - Database connection pool
+/// * `game_id` - ID of the game to update
+/// * `result` - Game result string (e.g., "1-0", "0-1", "1/2-1/2")
+///
+/// # Errors
+///
+/// Returns an error if the database update fails.
+pub fn finish_game(db: &DbPool, game_id: &str, result: &str) -> SqliteResult<()> {
+    let conn = db.lock().unwrap();
+    conn.execute(
+        "UPDATE games SET result = ?1 WHERE id = ?2",
+        (result, game_id),
+    )?;
+    Ok(())
+}
+
+/// Finish a match with final scores.
+///
+/// Updates the match status to 'completed' and records the final scores.
+///
+/// # Arguments
+///
+/// * `db` - Database connection pool
+/// * `match_id` - ID of the match to finish
+/// * `white_score` - Total points scored by white (1.0 per win, 0.5 per draw)
+/// * `black_score` - Total points scored by black
+///
+/// # Errors
+///
+/// Returns an error if the database update fails.
+pub fn finish_match(
+    db: &DbPool,
+    match_id: &str,
+    white_score: f64,
+    black_score: f64,
+) -> SqliteResult<()> {
+    let conn = db.lock().unwrap();
+    conn.execute(
+        "UPDATE matches SET status = 'completed', white_score = ?1, black_score = ?2, finished_at = datetime('now')
+         WHERE id = ?3",
+        (white_score, black_score, match_id),
+    )?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -175,5 +280,90 @@ mod tests {
             )
             .unwrap();
         assert_eq!(status, "running");
+    }
+
+    #[test]
+    fn test_create_and_finish_game() {
+        let db = setup_test_db();
+        {
+            let conn = db.lock().unwrap();
+            conn.execute_batch(
+                "CREATE TABLE games (id TEXT PRIMARY KEY, match_id TEXT, game_number INTEGER, result TEXT);",
+            )
+            .unwrap();
+        }
+
+        create_game(&db, "g1", "match1", 0).unwrap();
+        finish_game(&db, "g1", "1-0").unwrap();
+
+        let conn = db.lock().unwrap();
+        let result: String = conn
+            .query_row("SELECT result FROM games WHERE id = 'g1'", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(result, "1-0");
+    }
+
+    #[test]
+    fn test_insert_move() {
+        let db = setup_test_db();
+        {
+            let conn = db.lock().unwrap();
+            conn.execute_batch(
+                "CREATE TABLE games (id TEXT PRIMARY KEY, match_id TEXT, game_number INTEGER, result TEXT);
+                 CREATE TABLE moves (game_id TEXT, ply INTEGER, uci TEXT, san TEXT, fen_after TEXT);
+                 INSERT INTO games (id, match_id, game_number) VALUES ('g1', 'match1', 1);",
+            )
+            .unwrap();
+        }
+
+        insert_move(
+            &db,
+            "g1",
+            1,
+            "e2e4",
+            Some("e4"),
+            "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1",
+        )
+        .unwrap();
+
+        let conn = db.lock().unwrap();
+        let count: i32 = conn
+            .query_row("SELECT COUNT(*) FROM moves", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn test_finish_match() {
+        let db = setup_test_db();
+        {
+            let conn = db.lock().unwrap();
+            conn.execute("ALTER TABLE matches ADD COLUMN white_score REAL", [])
+                .unwrap();
+            conn.execute("ALTER TABLE matches ADD COLUMN black_score REAL", [])
+                .unwrap();
+            conn.execute("ALTER TABLE matches ADD COLUMN finished_at TEXT", [])
+                .unwrap();
+        }
+
+        // First claim the match to set it to 'running'
+        claim_match(&db, "worker-1").unwrap();
+
+        // Then finish it
+        finish_match(&db, "match1", 3.5, 1.5).unwrap();
+
+        let conn = db.lock().unwrap();
+        let (status, white_score, black_score): (String, f64, f64) = conn
+            .query_row(
+                "SELECT status, white_score, black_score FROM matches WHERE id = 'match1'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(status, "completed");
+        assert!((white_score - 3.5).abs() < 0.001);
+        assert!((black_score - 1.5).abs() < 0.001);
     }
 }
