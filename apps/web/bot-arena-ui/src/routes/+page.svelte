@@ -52,7 +52,7 @@
           {#each bots as bot, i}
             <tr>
               <td>{i + 1}</td>
-              <td><a href="/bots/{bot.name}">{bot.name}</a></td>
+              <td><a href="/bots/{encodeURIComponent(bot.name)}">{bot.name}</a></td>
               <td>{bot.elo_rating}</td>
               <td>{bot.wins}/{bot.losses}/{bot.draws}</td>
               <td>{winRate(bot)}</td>

@@ -2,6 +2,32 @@ import type { Bot, Match, MatchDetail, Move } from './types';
 
 const BASE_URL = '/api';
 
+/** Single point in Elo rating history */
+export interface EloHistoryPoint {
+  /** Elo rating at this point in time */
+  elo: number;
+  /** ISO timestamp of this rating */
+  timestamp: string;
+}
+
+/** Extended bot profile with Elo history */
+export interface BotProfile {
+  /** Unique bot identifier/name */
+  name: string;
+  /** Current ELO rating (starts at 1500) */
+  elo_rating: number;
+  /** Total games played */
+  games_played: number;
+  /** Number of wins */
+  wins: number;
+  /** Number of draws */
+  draws: number;
+  /** Number of losses */
+  losses: number;
+  /** Historical Elo ratings over time */
+  elo_history: EloHistoryPoint[];
+}
+
 /** Record of games between two specific bots */
 export interface HeadToHeadRecord {
   /** Bot playing as white */
@@ -97,11 +123,11 @@ export const api = {
   },
 
   /**
-   * Get a specific bot by name
+   * Get a specific bot profile by name including Elo history
    * @param name - Bot name
-   * @returns Bot details
+   * @returns Bot profile with Elo history
    */
-  getBot(name: string): Promise<Bot> {
+  getBot(name: string): Promise<BotProfile> {
     return fetchJson(`/bots/${encodeURIComponent(name)}`);
   },
 
