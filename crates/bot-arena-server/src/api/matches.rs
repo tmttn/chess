@@ -8,7 +8,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 
 use crate::models::{Game, Match, Move};
-use crate::repo::{MatchFilter, MatchRepo};
+use crate::repo::{BotRepo, MatchFilter, MatchRepo};
 use crate::AppState;
 
 /// Query parameters for listing matches.
@@ -111,6 +111,75 @@ pub async fn get_game_moves(
     repo.get_moves(&game_id)
         .map(Json)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+}
+
+/// Request body for creating a new match.
+#[derive(Debug, Deserialize)]
+pub struct CreateMatchRequest {
+    /// Name of the bot playing white.
+    pub white_bot: String,
+    /// Name of the bot playing black.
+    pub black_bot: String,
+    /// Total number of games in the match.
+    pub games: i32,
+    /// Move time in milliseconds (optional, defaults to 1000).
+    pub movetime_ms: Option<i32>,
+    /// Opening ID to use (optional).
+    pub opening_id: Option<String>,
+}
+
+/// Create a new match.
+///
+/// # Endpoint
+///
+/// `POST /api/matches`
+///
+/// # Request Body
+///
+/// JSON object with:
+/// - `white_bot`: Name of the bot playing white
+/// - `black_bot`: Name of the bot playing black
+/// - `games`: Total number of games
+/// - `movetime_ms`: Move time in milliseconds (optional, defaults to 1000)
+/// - `opening_id`: Opening ID to use (optional)
+///
+/// # Response
+///
+/// - `200 OK`: JSON match object with the created match
+/// - `500 Internal Server Error`: Database error
+pub async fn create_match(
+    State(state): State<AppState>,
+    Json(req): Json<CreateMatchRequest>,
+) -> Result<Json<Match>, StatusCode> {
+    let match_repo = MatchRepo::new(state.db.clone());
+    let bot_repo = BotRepo::new(state.db.clone());
+
+    // Ensure bots exist (creates them if they don't)
+    bot_repo
+        .ensure(&req.white_bot)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    bot_repo
+        .ensure(&req.black_bot)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let id = match_repo
+        .create(
+            &req.white_bot,
+            &req.black_bot,
+            req.games,
+            req.movetime_ms.unwrap_or(1000),
+            req.opening_id.as_deref(),
+        )
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let match_info = match_repo
+        .get(&id)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // TODO: Trigger match runner (Phase G)
+
+    Ok(Json(match_info))
 }
 
 #[cfg(test)]
@@ -361,5 +430,83 @@ mod tests {
         assert!(result.is_ok());
         let Json(moves) = result.unwrap();
         assert!(moves.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_create_match_basic() {
+        let state = test_state();
+
+        let req = CreateMatchRequest {
+            white_bot: "bot_alpha".to_string(),
+            black_bot: "bot_beta".to_string(),
+            games: 10,
+            movetime_ms: None,
+            opening_id: None,
+        };
+
+        let result = create_match(State(state.clone()), Json(req)).await;
+        assert!(result.is_ok());
+
+        let Json(created_match) = result.unwrap();
+        assert_eq!(created_match.white_bot, "bot_alpha");
+        assert_eq!(created_match.black_bot, "bot_beta");
+        assert_eq!(created_match.games_total, 10);
+        assert_eq!(created_match.movetime_ms, 1000); // Default value
+        assert_eq!(created_match.status, "pending");
+        assert!(created_match.opening_id.is_none());
+
+        // Verify bots were created
+        let conn = state.db.lock().unwrap();
+        let count: i32 = conn
+            .query_row("SELECT COUNT(*) FROM bots", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 2);
+    }
+
+    #[tokio::test]
+    async fn test_create_match_with_options() {
+        let state = test_state();
+
+        let req = CreateMatchRequest {
+            white_bot: "stockfish".to_string(),
+            black_bot: "komodo".to_string(),
+            games: 20,
+            movetime_ms: Some(2000),
+            opening_id: Some("sicilian".to_string()),
+        };
+
+        let result = create_match(State(state), Json(req)).await;
+        assert!(result.is_ok());
+
+        let Json(created_match) = result.unwrap();
+        assert_eq!(created_match.white_bot, "stockfish");
+        assert_eq!(created_match.black_bot, "komodo");
+        assert_eq!(created_match.games_total, 20);
+        assert_eq!(created_match.movetime_ms, 2000);
+        assert_eq!(created_match.opening_id, Some("sicilian".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_create_match_with_existing_bots() {
+        let state = test_state();
+        setup_test_data(&state); // Creates stockfish, komodo, leela
+
+        let req = CreateMatchRequest {
+            white_bot: "stockfish".to_string(),
+            black_bot: "komodo".to_string(),
+            games: 5,
+            movetime_ms: None,
+            opening_id: None,
+        };
+
+        let result = create_match(State(state.clone()), Json(req)).await;
+        assert!(result.is_ok());
+
+        // Verify no duplicate bots were created
+        let conn = state.db.lock().unwrap();
+        let count: i32 = conn
+            .query_row("SELECT COUNT(*) FROM bots", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 3); // Still only 3 bots
     }
 }

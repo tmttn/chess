@@ -4,6 +4,7 @@ use crate::db::DbPool;
 use crate::models::{Game, Match, Move};
 use rusqlite::OptionalExtension;
 use rusqlite::Result as SqliteResult;
+use uuid::Uuid;
 
 /// Repository for match database operations.
 pub struct MatchRepo {
@@ -35,6 +36,30 @@ impl MatchRepo {
     /// Create a new match repository with the given database pool.
     pub fn new(db: DbPool) -> Self {
         Self { db }
+    }
+
+    /// Create a new match in the database.
+    ///
+    /// Returns the ID of the newly created match.
+    pub fn create(
+        &self,
+        white_bot: &str,
+        black_bot: &str,
+        games_total: i32,
+        movetime_ms: i32,
+        opening_id: Option<&str>,
+    ) -> SqliteResult<String> {
+        let conn = self.db.lock().unwrap();
+        let id = Uuid::new_v4().to_string();
+        let now = chrono::Utc::now().to_rfc3339();
+
+        conn.execute(
+            "INSERT INTO matches (id, white_bot, black_bot, games_total, movetime_ms, opening_id, started_at, status)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'pending')",
+            (&id, white_bot, black_bot, games_total, movetime_ms, opening_id, &now),
+        )?;
+
+        Ok(id)
     }
 
     /// List matches with optional filtering.
@@ -509,5 +534,61 @@ mod tests {
         );
         assert_eq!(m.bot_eval, Some(25));
         assert_eq!(m.stockfish_eval, Some(30));
+    }
+
+    #[test]
+    fn test_create_match() {
+        let db = init_db(":memory:").unwrap();
+
+        // Create bots first (foreign key constraint)
+        {
+            let conn = db.lock().unwrap();
+            conn.execute("INSERT INTO bots (name) VALUES ('bot1')", [])
+                .unwrap();
+            conn.execute("INSERT INTO bots (name) VALUES ('bot2')", [])
+                .unwrap();
+        }
+
+        let repo = MatchRepo::new(db);
+
+        let id = repo.create("bot1", "bot2", 10, 1000, None).unwrap();
+        assert!(!id.is_empty());
+
+        let match_info = repo.get(&id).unwrap().unwrap();
+        assert_eq!(match_info.white_bot, "bot1");
+        assert_eq!(match_info.black_bot, "bot2");
+        assert_eq!(match_info.games_total, 10);
+        assert_eq!(match_info.movetime_ms, 1000);
+        assert_eq!(match_info.status, "pending");
+        assert!(match_info.opening_id.is_none());
+    }
+
+    #[test]
+    fn test_create_match_with_opening() {
+        let db = init_db(":memory:").unwrap();
+
+        // Create bots first (foreign key constraint)
+        {
+            let conn = db.lock().unwrap();
+            conn.execute("INSERT INTO bots (name) VALUES ('bot1')", [])
+                .unwrap();
+            conn.execute("INSERT INTO bots (name) VALUES ('bot2')", [])
+                .unwrap();
+        }
+
+        let repo = MatchRepo::new(db);
+
+        let id = repo
+            .create("bot1", "bot2", 20, 2000, Some("sicilian"))
+            .unwrap();
+        assert!(!id.is_empty());
+
+        let match_info = repo.get(&id).unwrap().unwrap();
+        assert_eq!(match_info.white_bot, "bot1");
+        assert_eq!(match_info.black_bot, "bot2");
+        assert_eq!(match_info.games_total, 20);
+        assert_eq!(match_info.movetime_ms, 2000);
+        assert_eq!(match_info.status, "pending");
+        assert_eq!(match_info.opening_id, Some("sicilian".to_string()));
     }
 }

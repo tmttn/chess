@@ -12,7 +12,8 @@ mod models;
 mod repo;
 mod ws;
 
-use axum::{routing::get, Router};
+use axum::routing::get;
+use axum::Router;
 use db::DbPool;
 use std::net::SocketAddr;
 
@@ -52,7 +53,10 @@ async fn main() {
         .route("/health", get(health))
         .route("/api/bots", get(api::bots::list_bots))
         .route("/api/bots/:name", get(api::bots::get_bot))
-        .route("/api/matches", get(api::matches::list_matches))
+        .route(
+            "/api/matches",
+            get(api::matches::list_matches).post(api::matches::create_match),
+        )
         .route("/api/matches/:id", get(api::matches::get_match_detail))
         .route("/api/games/:id/moves", get(api::matches::get_game_moves))
         .with_state(state)
