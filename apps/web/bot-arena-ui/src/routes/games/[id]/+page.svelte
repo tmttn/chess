@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
-  import { api, type AnalysisResult } from '$lib/api';
+  import { api, getExportUrl, type AnalysisResult } from '$lib/api';
   import { parseFen, parseUciMove, getSideToMove, STARTING_FEN } from '$lib/fen';
   import { Board } from '@tmttn-chess/board';
   import type { MatchDetail, Move, Game } from '$lib/types';
@@ -135,7 +135,14 @@
   {:else if matchDetail}
     <header>
       <div class="title-section">
-        <h1>{matchDetail.white_bot} vs {matchDetail.black_bot}</h1>
+        <div class="title-row">
+          <h1>{matchDetail.white_bot} vs {matchDetail.black_bot}</h1>
+          {#if id}
+            <a href={getExportUrl('match', id)} download class="export-btn">
+              Export HTML
+            </a>
+          {/if}
+        </div>
         <p class="score">{matchDetail.white_score} - {matchDetail.black_score}</p>
       </div>
       {#if matchDetail.games.length > 1}
@@ -262,8 +269,29 @@
 
   .title-section {
     display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .title-row {
+    display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 1rem;
+  }
+
+  .export-btn {
+    display: inline-block;
+    padding: 0.5rem 1rem;
+    background: var(--accent);
+    color: var(--text);
+    text-decoration: none;
+    border-radius: 4px;
+    font-size: 0.9rem;
+  }
+
+  .export-btn:hover {
+    background: var(--highlight);
   }
 
   h1 {

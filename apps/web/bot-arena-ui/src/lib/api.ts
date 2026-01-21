@@ -112,6 +112,16 @@ async function fetchJson<T>(url: string): Promise<T> {
   return response.json();
 }
 
+/**
+ * Get the URL for exporting a resource as HTML
+ * @param type - Type of resource to export ('match', 'game', or 'bot')
+ * @param id - Resource identifier (match/game UUID or bot name)
+ * @returns Full export URL
+ */
+export function getExportUrl(type: 'match' | 'game' | 'bot', id: string): string {
+  return `${BASE_URL}/export/${type}/${encodeURIComponent(id)}`;
+}
+
 /** API client for bot arena server */
 export const api = {
   /**

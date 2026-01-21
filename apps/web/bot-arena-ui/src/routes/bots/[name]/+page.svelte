@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
-  import { api, type BotProfile, type EloHistoryPoint } from '$lib/api';
+  import { api, getExportUrl, type BotProfile, type EloHistoryPoint } from '$lib/api';
 
   let profile: BotProfile | null = $state(null);
   let loading = $state(true);
@@ -69,7 +69,14 @@
     <p class="error">{error}</p>
   {:else if profile}
     <header>
-      <h1>{profile.name}</h1>
+      <div class="header-row">
+        <h1>{profile.name}</h1>
+        {#if name}
+          <a href={getExportUrl('bot', name)} download class="export-btn">
+            Export Profile
+          </a>
+        {/if}
+      </div>
       <p class="elo-rating">
         <span class="label">Elo Rating:</span>
         <span class="value">{profile.elo_rating}</span>
@@ -155,9 +162,30 @@
     gap: 0.5rem;
   }
 
+  .header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+  }
+
   h1 {
     font-size: 2rem;
     margin: 0;
+  }
+
+  .export-btn {
+    display: inline-block;
+    padding: 0.5rem 1rem;
+    background: var(--accent);
+    color: var(--text);
+    text-decoration: none;
+    border-radius: 4px;
+    font-size: 0.9rem;
+  }
+
+  .export-btn:hover {
+    background: var(--highlight);
   }
 
   .elo-rating {
