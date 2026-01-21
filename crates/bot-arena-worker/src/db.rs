@@ -4,6 +4,7 @@
 //! for the worker. The `claim_match` function will be used in the worker loop
 //! implementation (next phase).
 
+use crate::elo;
 use rusqlite::{Connection, OptionalExtension, Result as SqliteResult};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -219,6 +220,98 @@ pub fn finish_match(
     Ok(())
 }
 
+/// A game result for Elo calculation.
+#[derive(Debug, Clone)]
+pub struct GameResult {
+    /// Game number within the match (0-indexed).
+    pub game_num: i32,
+    /// Result string: "1-0", "0-1", or "1/2-1/2".
+    pub result: String,
+}
+
+/// Update Elo ratings for both bots after a match.
+///
+/// This function calculates new Elo ratings based on all game results in the match.
+/// Colors alternate each game: even-numbered games have white_bot as white,
+/// odd-numbered games have white_bot as black.
+///
+/// # Arguments
+///
+/// * `db` - Database connection pool
+/// * `match_id` - Match ID to get bot names
+/// * `game_results` - Vector of game results
+///
+/// # Errors
+///
+/// Returns an error if database queries fail.
+pub fn update_elo_ratings(
+    db: &DbPool,
+    match_id: &str,
+    game_results: &[GameResult],
+) -> SqliteResult<()> {
+    let conn = db.lock().unwrap();
+
+    // Get bot names from match
+    let (white_bot, black_bot): (String, String) = conn.query_row(
+        "SELECT white_bot, black_bot FROM matches WHERE id = ?1",
+        [match_id],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )?;
+
+    // Get current ratings
+    let white_rating: i32 = conn.query_row(
+        "SELECT elo_rating FROM bots WHERE name = ?1",
+        [&white_bot],
+        |row| row.get(0),
+    )?;
+
+    let black_rating: i32 = conn.query_row(
+        "SELECT elo_rating FROM bots WHERE name = ?1",
+        [&black_bot],
+        |row| row.get(0),
+    )?;
+
+    // Update Elo for each game
+    let mut new_white_rating = white_rating;
+    let mut new_black_rating = black_rating;
+
+    for game in game_results {
+        let (white_actual, black_actual) = match game.result.as_str() {
+            "1-0" => (1.0, 0.0),
+            "0-1" => (0.0, 1.0),
+            _ => (0.5, 0.5), // Draw
+        };
+
+        // Colors alternate each game
+        if game.game_num % 2 == 0 {
+            // Even games: white_bot plays white
+            let new_w = elo::new_rating(new_white_rating, new_black_rating, white_actual);
+            let new_b = elo::new_rating(new_black_rating, new_white_rating, black_actual);
+            new_white_rating = new_w;
+            new_black_rating = new_b;
+        } else {
+            // Odd games: white_bot plays black
+            let new_w = elo::new_rating(new_white_rating, new_black_rating, black_actual);
+            let new_b = elo::new_rating(new_black_rating, new_white_rating, white_actual);
+            new_white_rating = new_w;
+            new_black_rating = new_b;
+        }
+    }
+
+    // Update database
+    conn.execute(
+        "UPDATE bots SET elo_rating = ?1, games_played = games_played + ?2 WHERE name = ?3",
+        (new_white_rating, game_results.len(), &white_bot),
+    )?;
+
+    conn.execute(
+        "UPDATE bots SET elo_rating = ?1, games_played = games_played + ?2 WHERE name = ?3",
+        (new_black_rating, game_results.len(), &black_bot),
+    )?;
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -226,7 +319,11 @@ mod tests {
     fn setup_test_db() -> DbPool {
         let conn = Connection::open_in_memory().unwrap();
         conn.execute_batch(
-            "CREATE TABLE bots (name TEXT PRIMARY KEY, elo_rating INTEGER DEFAULT 1500);
+            "CREATE TABLE bots (
+                 name TEXT PRIMARY KEY,
+                 elo_rating INTEGER DEFAULT 1500,
+                 games_played INTEGER DEFAULT 0
+             );
              CREATE TABLE matches (
                  id TEXT PRIMARY KEY,
                  white_bot TEXT,
@@ -365,5 +462,135 @@ mod tests {
         assert_eq!(status, "completed");
         assert!((white_score - 3.5).abs() < 0.001);
         assert!((black_score - 1.5).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_update_elo_ratings_single_win() {
+        let db = setup_test_db();
+
+        // bot1 (white_bot) wins game 0 (playing as white)
+        let results = vec![GameResult {
+            game_num: 0,
+            result: "1-0".to_string(),
+        }];
+
+        update_elo_ratings(&db, "match1", &results).unwrap();
+
+        let conn = db.lock().unwrap();
+        let (bot1_elo, bot1_games): (i32, i32) = conn
+            .query_row(
+                "SELECT elo_rating, games_played FROM bots WHERE name = 'bot1'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        let (bot2_elo, bot2_games): (i32, i32) = conn
+            .query_row(
+                "SELECT elo_rating, games_played FROM bots WHERE name = 'bot2'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+
+        // bot1 won as white in game 0, gains 16 points
+        assert_eq!(bot1_elo, 1516);
+        assert_eq!(bot2_elo, 1484);
+        assert_eq!(bot1_games, 1);
+        assert_eq!(bot2_games, 1);
+    }
+
+    #[test]
+    fn test_update_elo_ratings_color_alternation() {
+        let db = setup_test_db();
+
+        // Game 0: white_bot (bot1) plays white, wins (1-0)
+        // Game 1: white_bot (bot1) plays black, wins (0-1)
+        let results = vec![
+            GameResult {
+                game_num: 0,
+                result: "1-0".to_string(),
+            },
+            GameResult {
+                game_num: 1,
+                result: "0-1".to_string(),
+            },
+        ];
+
+        update_elo_ratings(&db, "match1", &results).unwrap();
+
+        let conn = db.lock().unwrap();
+        let (bot1_elo, bot1_games): (i32, i32) = conn
+            .query_row(
+                "SELECT elo_rating, games_played FROM bots WHERE name = 'bot1'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        let (bot2_elo, bot2_games): (i32, i32) = conn
+            .query_row(
+                "SELECT elo_rating, games_played FROM bots WHERE name = 'bot2'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+
+        // bot1 won both games, should have gained points
+        assert!(bot1_elo > 1516); // More than single win
+        assert!(bot2_elo < 1484); // Lost twice
+        assert_eq!(bot1_games, 2);
+        assert_eq!(bot2_games, 2);
+    }
+
+    #[test]
+    fn test_update_elo_ratings_draw() {
+        let db = setup_test_db();
+
+        let results = vec![GameResult {
+            game_num: 0,
+            result: "1/2-1/2".to_string(),
+        }];
+
+        update_elo_ratings(&db, "match1", &results).unwrap();
+
+        let conn = db.lock().unwrap();
+        let bot1_elo: i32 = conn
+            .query_row(
+                "SELECT elo_rating FROM bots WHERE name = 'bot1'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let bot2_elo: i32 = conn
+            .query_row(
+                "SELECT elo_rating FROM bots WHERE name = 'bot2'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+
+        // Draw between equal ratings = no change
+        assert_eq!(bot1_elo, 1500);
+        assert_eq!(bot2_elo, 1500);
+    }
+
+    #[test]
+    fn test_update_elo_ratings_empty_results() {
+        let db = setup_test_db();
+
+        let results: Vec<GameResult> = vec![];
+
+        update_elo_ratings(&db, "match1", &results).unwrap();
+
+        let conn = db.lock().unwrap();
+        let bot1_elo: i32 = conn
+            .query_row(
+                "SELECT elo_rating FROM bots WHERE name = 'bot1'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+
+        // No games = no change
+        assert_eq!(bot1_elo, 1500);
     }
 }

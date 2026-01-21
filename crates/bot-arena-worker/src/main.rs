@@ -4,6 +4,7 @@
 //! UCI chess engines, and writes results back to the database.
 
 mod db;
+mod elo;
 mod runner;
 
 use bot_arena::game_runner::MatchResult;
@@ -61,6 +62,7 @@ async fn main() -> anyhow::Result<()> {
                     Ok(results) => {
                         let mut white_score = 0.0;
                         let mut black_score = 0.0;
+                        let mut game_results = Vec::new();
 
                         for (game_num, (game_id, result)) in results.iter().enumerate() {
                             // Create game record
@@ -110,6 +112,12 @@ async fn main() -> anyhow::Result<()> {
                                 }
                             };
 
+                            // Collect game result for Elo update
+                            game_results.push(db::GameResult {
+                                game_num: game_num as i32,
+                                result: game_result_str.to_string(),
+                            });
+
                             let _ = db::finish_game(&db, game_id, game_result_str);
                             tracing::info!("Game {} finished: {}", game_id, game_result_str);
                         }
@@ -125,6 +133,17 @@ async fn main() -> anyhow::Result<()> {
                                 white_score,
                                 black_score
                             );
+                        }
+
+                        // Update Elo ratings
+                        if let Err(e) = db::update_elo_ratings(&db, &pending.id, &game_results) {
+                            tracing::error!(
+                                "Failed to update Elo ratings for match {}: {}",
+                                pending.id,
+                                e
+                            );
+                        } else {
+                            tracing::info!("Elo ratings updated for match {}", pending.id);
                         }
                     }
                     Err(e) => {
