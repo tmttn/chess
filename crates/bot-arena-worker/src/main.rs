@@ -1,8 +1,10 @@
 //! Bot Arena Worker - Executes matches from the database.
 
 mod db;
+mod runner;
 
 use clap::Parser;
+use runner::MatchRunner;
 use std::path::PathBuf;
 
 /// Bot Arena Worker - Executes bot matches from the database.
@@ -31,12 +33,15 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("Starting bot-arena-worker");
     tracing::info!("Database: {:?}", args.db);
     tracing::info!("Poll interval: {}ms", args.poll_interval);
+    tracing::info!("Bots directory: {:?}", args.bots_dir);
 
     let db = db::connect(&args.db)?;
     let worker_id = uuid::Uuid::new_v4().to_string();
     tracing::info!("Worker ID: {}", worker_id);
 
+    let runner = MatchRunner::new(&args.bots_dir);
+
     // TODO: Implement worker loop
-    let _ = (db, worker_id, args.bots_dir, args.poll_interval);
+    let _ = (db, worker_id, runner, args.poll_interval);
     Ok(())
 }

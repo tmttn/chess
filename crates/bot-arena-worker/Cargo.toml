@@ -17,3 +17,4 @@ anyhow = "1"
 chess-core = { path = "../chess-core" }
 chess-engine = { path = "../chess-engine" }
 uci = { path = "../uci" }
+bot-arena = { path = "../bot-arena" }
