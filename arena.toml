@@ -1,6 +1,11 @@
 # Bot Arena Configuration
 # Defines available bots and match presets
 
+# Stockfish analysis engine configuration
+[analysis]
+pool_size = 2
+stockfish_path = "stockfish"
+
 [bots.minimax]
 path = "./target/release/bot-minimax"
 time_control = "movetime 500"

@@ -32,8 +32,8 @@ pub struct AppState {
     pub db: DbPool,
     /// WebSocket broadcast channel for live match updates.
     pub ws_broadcast: ws::WsBroadcast,
-    /// Stockfish engine pool for position analysis.
-    pub engine_pool: Option<Arc<analysis::EnginePool>>,
+    /// Stockfish engine pool for position analysis (lazy-initialized).
+    pub engine_pool: Option<Arc<analysis::LazyEnginePool>>,
     /// Arena configuration including presets.
     pub config: Arc<ArenaConfig>,
 }
@@ -55,18 +55,27 @@ async fn main() {
     let db = db::init_db("data/arena.db").expect("Failed to initialize database");
     let ws_broadcast = ws::create_broadcast();
 
-    // Create engine pool if STOCKFISH_PATH is set
-    let engine_pool = std::env::var("STOCKFISH_PATH").ok().map(|path| {
-        tracing::info!("Stockfish analysis enabled: {}", path);
-        Arc::new(analysis::EnginePool::new(path, 2)) // Pool size of 2
-    });
-
     // Load arena configuration
     let config = ArenaConfig::load().unwrap_or_else(|e| {
         tracing::warn!("Failed to load arena config: {}, using defaults", e);
         ArenaConfig::default()
     });
     tracing::info!("Loaded {} presets from config", config.presets.len());
+
+    // Create lazy engine pool from config (or override from STOCKFISH_PATH env var)
+    let stockfish_path =
+        std::env::var("STOCKFISH_PATH").unwrap_or_else(|_| config.analysis.stockfish_path.clone());
+    let pool_size = config.analysis.pool_size;
+
+    let engine_pool = Some(Arc::new(analysis::LazyEnginePool::new(
+        stockfish_path.clone(),
+        pool_size,
+    )));
+    tracing::info!(
+        "Engine pool configured: path={}, size={} (lazy init)",
+        stockfish_path,
+        pool_size
+    );
 
     let state = AppState {
         db,

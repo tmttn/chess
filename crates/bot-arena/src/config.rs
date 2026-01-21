@@ -69,6 +69,39 @@ fn default_games() -> u32 {
     10
 }
 
+/// Configuration for Stockfish analysis engine pool.
+///
+/// Controls the engine pool size and path to the Stockfish executable.
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct AnalysisConfig {
+    /// Maximum number of concurrent analysis engines.
+    /// Defaults to 2.
+    #[serde(default = "default_pool_size")]
+    pub pool_size: usize,
+
+    /// Path to Stockfish engine for analysis.
+    /// Defaults to "stockfish" (assumes it's in PATH).
+    #[serde(default = "default_stockfish_path")]
+    pub stockfish_path: String,
+}
+
+fn default_pool_size() -> usize {
+    2
+}
+
+fn default_stockfish_path() -> String {
+    "stockfish".to_string()
+}
+
+impl Default for AnalysisConfig {
+    fn default() -> Self {
+        Self {
+            pool_size: default_pool_size(),
+            stockfish_path: default_stockfish_path(),
+        }
+    }
+}
+
 /// Main arena configuration structure.
 ///
 /// Contains all bot definitions and match presets loaded from the
@@ -82,14 +115,9 @@ pub struct ArenaConfig {
     /// Map of preset names to their configurations.
     #[serde(default)]
     pub presets: HashMap<String, PresetConfig>,
-    /// Path to Stockfish engine for analysis.
-    /// Defaults to "stockfish" (assumes it's in PATH).
-    #[serde(default = "default_stockfish_path")]
-    pub stockfish_path: String,
-}
-
-fn default_stockfish_path() -> String {
-    "stockfish".to_string()
+    /// Configuration for Stockfish analysis engine pool.
+    #[serde(default)]
+    pub analysis: AnalysisConfig,
 }
 
 impl ArenaConfig {
@@ -300,18 +328,48 @@ time_control = "movetime 200"
     }
 
     #[test]
-    fn test_stockfish_path_default() {
+    fn test_analysis_config_defaults() {
         let config: ArenaConfig = toml::from_str("").unwrap();
-        assert_eq!(config.stockfish_path, "stockfish");
+        assert_eq!(config.analysis.stockfish_path, "stockfish");
+        assert_eq!(config.analysis.pool_size, 2);
     }
 
     #[test]
-    fn test_stockfish_path_custom() {
+    fn test_analysis_config_custom() {
         let toml_content = r#"
+[analysis]
 stockfish_path = "/opt/stockfish/stockfish"
+pool_size = 4
 "#;
 
         let config: ArenaConfig = toml::from_str(toml_content).unwrap();
-        assert_eq!(config.stockfish_path, "/opt/stockfish/stockfish");
+        assert_eq!(config.analysis.stockfish_path, "/opt/stockfish/stockfish");
+        assert_eq!(config.analysis.pool_size, 4);
+    }
+
+    #[test]
+    fn test_analysis_config_partial() {
+        let toml_content = r#"
+[analysis]
+pool_size = 8
+"#;
+
+        let config: ArenaConfig = toml::from_str(toml_content).unwrap();
+        assert_eq!(config.analysis.stockfish_path, "stockfish"); // default
+        assert_eq!(config.analysis.pool_size, 8);
+    }
+
+    #[test]
+    fn test_analysis_config_serialization_roundtrip() {
+        let analysis = AnalysisConfig {
+            pool_size: 5,
+            stockfish_path: "/usr/local/bin/stockfish".to_string(),
+        };
+
+        let serialized = toml::to_string(&analysis).unwrap();
+        let deserialized: AnalysisConfig = toml::from_str(&serialized).unwrap();
+
+        assert_eq!(deserialized.pool_size, analysis.pool_size);
+        assert_eq!(deserialized.stockfish_path, analysis.stockfish_path);
     }
 }

@@ -418,7 +418,7 @@ fn run_analyze(
     book_moves: usize,
 ) {
     // Determine engine path
-    let engine_path = engine_override.unwrap_or_else(|| config.stockfish_path.clone());
+    let engine_path = engine_override.unwrap_or_else(|| config.analysis.stockfish_path.clone());
 
     // Find and load game
     let game_path = match find_game_file(game_id) {
@@ -593,7 +593,7 @@ mod tests {
         let config = ArenaConfig {
             bots: HashMap::new(),
             presets,
-            stockfish_path: "stockfish".to_string(),
+            analysis: Default::default(),
         };
 
         // Simulate the preset lookup logic from main
