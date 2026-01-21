@@ -16,6 +16,8 @@ use axum::routing::get;
 use axum::Router;
 use db::DbPool;
 use std::net::SocketAddr;
+use tower_http::cors::{Any, CorsLayer};
+use tower_http::services::ServeDir;
 
 /// Application state shared across all handlers.
 #[derive(Clone)]
@@ -44,6 +46,12 @@ async fn main() {
     let ws_broadcast = ws::create_broadcast();
     let state = AppState { db, ws_broadcast };
 
+    // CORS layer for cross-origin requests
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any);
+
     // WebSocket route with broadcast state
     let ws_router = Router::new()
         .route("/ws", get(ws::ws_handler))
@@ -60,7 +68,9 @@ async fn main() {
         .route("/api/matches/:id", get(api::matches::get_match_detail))
         .route("/api/games/:id/moves", get(api::matches::get_game_moves))
         .with_state(state)
-        .merge(ws_router);
+        .merge(ws_router)
+        .layer(cors)
+        .fallback_service(ServeDir::new("static").append_index_html_on_directories(true));
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
     tracing::info!("Server running on http://{}", addr);
