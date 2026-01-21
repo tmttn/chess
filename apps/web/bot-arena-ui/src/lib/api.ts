@@ -2,6 +2,22 @@ import type { Bot, Match, MatchDetail, Move } from './types';
 
 const BASE_URL = '/api';
 
+/** Opening statistics from the database */
+export interface OpeningStats {
+  /** ECO code (e.g., "B20") */
+  eco: string;
+  /** Opening name (e.g., "Sicilian Defense") */
+  name: string;
+  /** Total number of games played with this opening */
+  games_played: number;
+  /** Number of white wins */
+  white_wins: number;
+  /** Number of black wins */
+  black_wins: number;
+  /** Number of draws */
+  draws: number;
+}
+
 /** Result of Stockfish analysis for a position */
 export interface AnalysisResult {
   /** The FEN string of the analyzed position */
@@ -127,5 +143,13 @@ export const api = {
   getAnalysis(fen: string, depth: number = 20): Promise<AnalysisResult> {
     const params = new URLSearchParams({ fen, depth: depth.toString() });
     return fetchJson(`/analysis?${params}`);
+  },
+
+  /**
+   * Get opening statistics
+   * @returns List of opening statistics sorted by games played
+   */
+  getOpenings(): Promise<OpeningStats[]> {
+    return fetchJson('/openings');
   },
 };

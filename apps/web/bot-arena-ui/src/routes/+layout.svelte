@@ -9,6 +9,7 @@
       <div class="nav-links">
         <a href="/">Dashboard</a>
         <a href="/games">Games</a>
+        <a href="/openings">Openings</a>
         <a href="/match/new">New Match</a>
       </div>
     </nav>
