@@ -31,8 +31,19 @@ export function createLiveMatchStore(matchId: string) {
       update(s => ({ ...s, connected: false }));
     };
 
+    ws.onerror = (event) => {
+      console.error('WebSocket error:', event);
+      update(s => ({ ...s, connected: false }));
+    };
+
     ws.onmessage = (event) => {
-      const msg = JSON.parse(event.data);
+      let msg;
+      try {
+        msg = JSON.parse(event.data);
+      } catch (e) {
+        console.error('Failed to parse WebSocket message:', e);
+        return;
+      }
 
       switch (msg.type) {
         case 'move':
@@ -70,7 +81,9 @@ export function createLiveMatchStore(matchId: string) {
 
   function disconnect() {
     if (ws) {
-      ws.send(JSON.stringify({ type: 'unsubscribe', match_id: matchId }));
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'unsubscribe', match_id: matchId }));
+      }
       ws.close();
       ws = null;
     }
