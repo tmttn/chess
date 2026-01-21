@@ -1,0 +1,22 @@
+<svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg" style="max-width: 400px;">
+  <defs>
+    <style>
+      .light { fill: #f0d9b5; }
+      .dark { fill: #b58863; }
+      .piece { font-family: Arial, sans-serif; font-size: 40px; text-anchor: middle; dominant-baseline: middle; }
+    </style>
+  </defs>
+
+  <!-- Board squares -->
+  {% for row in 0..8 %}
+  {% for col in 0..8 %}
+  <rect x="{{ col * 50 }}" y="{{ row * 50 }}" width="50" height="50"
+        class="{% if (row + col) % 2 == 0 %}light{% else %}dark{% endif %}" />
+  {% endfor %}
+  {% endfor %}
+
+  <!-- Pieces -->
+  {% for piece in pieces %}
+  <text x="{{ piece.col * 50 + 25 }}" y="{{ piece.row * 50 + 25 }}" class="piece">{{ piece.symbol }}</text>
+  {% endfor %}
+</svg>
