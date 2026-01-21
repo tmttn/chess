@@ -50,7 +50,8 @@ pub fn init_db<P: AsRef<Path>>(path: P) -> SqliteResult<DbPool> {
             movetime_ms INTEGER DEFAULT 1000,
             started_at TEXT NOT NULL,
             finished_at TEXT,
-            status TEXT DEFAULT 'pending'
+            status TEXT DEFAULT 'pending',
+            worker_id TEXT
         );
 
         CREATE TABLE IF NOT EXISTS games (

@@ -58,8 +58,10 @@ pub struct Match {
     pub started_at: String,
     /// When the match finished (if complete).
     pub finished_at: Option<String>,
-    /// Match status (pending, running, finished).
+    /// Match status (pending, running, completed, failed).
     pub status: String,
+    /// Worker ID processing this match (if assigned).
+    pub worker_id: Option<String>,
 }
 
 /// A single game within a match.

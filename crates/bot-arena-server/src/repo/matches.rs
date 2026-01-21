@@ -70,13 +70,13 @@ impl MatchRepo {
 
         let sql = if filter.bot.is_some() {
             "SELECT id, white_bot, black_bot, games_total, white_score, black_score,
-                    opening_id, movetime_ms, started_at, finished_at, status
+                    opening_id, movetime_ms, started_at, finished_at, status, worker_id
              FROM matches
              WHERE white_bot = ?1 OR black_bot = ?1
              ORDER BY started_at DESC LIMIT ?2 OFFSET ?3"
         } else {
             "SELECT id, white_bot, black_bot, games_total, white_score, black_score,
-                    opening_id, movetime_ms, started_at, finished_at, status
+                    opening_id, movetime_ms, started_at, finished_at, status, worker_id
              FROM matches
              ORDER BY started_at DESC LIMIT ?1 OFFSET ?2"
         };
@@ -105,7 +105,7 @@ impl MatchRepo {
         let conn = self.db.lock().unwrap();
         let mut stmt = conn.prepare(
             "SELECT id, white_bot, black_bot, games_total, white_score, black_score,
-                    opening_id, movetime_ms, started_at, finished_at, status
+                    opening_id, movetime_ms, started_at, finished_at, status, worker_id
              FROM matches WHERE id = ?1",
         )?;
         stmt.query_row([id], Self::map_row).optional()
@@ -178,6 +178,7 @@ impl MatchRepo {
             started_at: row.get(8)?,
             finished_at: row.get(9)?,
             status: row.get(10)?,
+            worker_id: row.get(11)?,
         })
     }
 }
@@ -446,9 +447,9 @@ mod tests {
             let conn = db.lock().unwrap();
             conn.execute(
                 "INSERT INTO matches (id, white_bot, black_bot, games_total, white_score, black_score,
-                                      opening_id, movetime_ms, started_at, finished_at, status)
+                                      opening_id, movetime_ms, started_at, finished_at, status, worker_id)
                  VALUES ('match1', 'stockfish', 'komodo', 10, 5.5, 4.5, 'e4-openings', 2000,
-                         '2025-01-21T10:00:00', '2025-01-21T12:00:00', 'finished')",
+                         '2025-01-21T10:00:00', '2025-01-21T12:00:00', 'completed', 'worker-1')",
                 [],
             )
             .unwrap();
@@ -467,7 +468,8 @@ mod tests {
         assert_eq!(m.movetime_ms, 2000);
         assert_eq!(m.started_at, "2025-01-21T10:00:00");
         assert_eq!(m.finished_at, Some("2025-01-21T12:00:00".to_string()));
-        assert_eq!(m.status, "finished");
+        assert_eq!(m.status, "completed");
+        assert_eq!(m.worker_id, Some("worker-1".to_string()));
     }
 
     #[test]
@@ -561,6 +563,7 @@ mod tests {
         assert_eq!(match_info.movetime_ms, 1000);
         assert_eq!(match_info.status, "pending");
         assert!(match_info.opening_id.is_none());
+        assert!(match_info.worker_id.is_none());
     }
 
     #[test]
