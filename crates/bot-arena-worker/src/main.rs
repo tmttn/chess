@@ -192,8 +192,10 @@ async fn main() -> anyhow::Result<()> {
                     }
                     Err(e) => {
                         tracing::error!("Match {} failed: {}", pending.id, e);
-                        // Clear current match on failure (match remains in running state)
-                        // TODO: Mark match as failed in database
+                        // Mark match as failed in database
+                        if let Err(db_err) = db::fail_match(&db, &pending.id, &e.to_string()) {
+                            tracing::error!("Failed to mark match as failed: {}", db_err);
+                        }
                         current_match_id = None;
                     }
                 }

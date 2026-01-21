@@ -215,6 +215,31 @@ pub fn release_match(db: &DbPool, match_id: &str, worker_id: &str) -> SqliteResu
     Ok(())
 }
 
+/// Mark a match as failed with an error message.
+///
+/// Updates the match status to 'failed' and logs the error message.
+/// The error message is not stored in the database (no column exists for it)
+/// but is logged via tracing for debugging purposes.
+///
+/// # Arguments
+///
+/// * `db` - Database connection pool
+/// * `match_id` - ID of the match to mark as failed
+/// * `error` - Error message describing the failure
+///
+/// # Errors
+///
+/// Returns an error if the database update fails.
+pub fn fail_match(db: &DbPool, match_id: &str, error: &str) -> SqliteResult<()> {
+    let conn = db.lock().unwrap();
+    conn.execute(
+        "UPDATE matches SET status = 'failed', finished_at = datetime('now') WHERE id = ?1",
+        [match_id],
+    )?;
+    tracing::error!(match_id = %match_id, error = %error, "Match marked as failed");
+    Ok(())
+}
+
 /// Finish a match with final scores.
 ///
 /// Updates the match status to 'completed' and records the final scores.
@@ -658,5 +683,57 @@ mod tests {
             )
             .unwrap();
         assert_eq!(status, "running");
+    }
+
+    #[test]
+    fn test_fail_match() {
+        let db = setup_test_db();
+        {
+            let conn = db.lock().unwrap();
+            conn.execute("ALTER TABLE matches ADD COLUMN finished_at TEXT", [])
+                .unwrap();
+        }
+
+        // Claim the match first
+        claim_match(&db, "worker-1").unwrap();
+
+        // Mark it as failed
+        fail_match(&db, "match1", "Test engine error").unwrap();
+
+        // Verify status is 'failed' and finished_at is set
+        let conn = db.lock().unwrap();
+        let (status, finished_at): (String, Option<String>) = conn
+            .query_row(
+                "SELECT status, finished_at FROM matches WHERE id = 'match1'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(status, "failed");
+        assert!(finished_at.is_some(), "finished_at should be set");
+    }
+
+    #[test]
+    fn test_fail_match_from_pending() {
+        let db = setup_test_db();
+        {
+            let conn = db.lock().unwrap();
+            conn.execute("ALTER TABLE matches ADD COLUMN finished_at TEXT", [])
+                .unwrap();
+        }
+
+        // Fail a match directly without claiming (edge case)
+        fail_match(&db, "match1", "Configuration error").unwrap();
+
+        // Verify status is 'failed'
+        let conn = db.lock().unwrap();
+        let status: String = conn
+            .query_row(
+                "SELECT status FROM matches WHERE id = 'match1'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(status, "failed");
     }
 }
