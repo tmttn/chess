@@ -5,18 +5,21 @@
 //! - WebSocket for live match updates
 //! - Static files for the SvelteKit frontend
 
-// Modules will be used in subsequent tasks when API endpoints are added.
-// Justification: Incremental development - modules are complete and tested,
-// but integration with Axum routes comes in a later task.
-#[allow(unused)]
+mod api;
 mod db;
-#[allow(unused)]
 mod models;
-#[allow(unused)]
 mod repo;
 
 use axum::{routing::get, Router};
+use db::DbPool;
 use std::net::SocketAddr;
+
+/// Application state shared across all handlers.
+#[derive(Clone)]
+pub struct AppState {
+    /// Database connection pool.
+    pub db: DbPool,
+}
 
 /// Health check endpoint.
 ///
@@ -29,7 +32,17 @@ async fn health() -> &'static str {
 async fn main() {
     tracing_subscriber::fmt::init();
 
-    let app = Router::new().route("/health", get(health));
+    // Create data directory if needed
+    std::fs::create_dir_all("data").expect("Failed to create data directory");
+
+    let db = db::init_db("data/arena.db").expect("Failed to initialize database");
+    let state = AppState { db };
+
+    let app = Router::new()
+        .route("/health", get(health))
+        .route("/api/bots", get(api::bots::list_bots))
+        .route("/api/bots/:name", get(api::bots::get_bot))
+        .with_state(state);
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
     tracing::info!("Server running on http://{}", addr);

@@ -24,6 +24,8 @@ impl Bot {
     ///
     /// Draws count as 0.5 wins for this calculation.
     /// Returns 0.0 if no games have been played.
+    // Justification: Will be used in frontend statistics display (Phase 5, later tasks)
+    #[allow(dead_code)]
     pub fn win_rate(&self) -> f64 {
         if self.games_played == 0 {
             0.0
@@ -34,6 +36,8 @@ impl Bot {
 }
 
 /// A match (series of games) between two bots.
+// Justification: Will be used in match API endpoints (Phase 5, later tasks)
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Match {
     /// Unique match identifier.
@@ -61,6 +65,8 @@ pub struct Match {
 }
 
 /// A single game within a match.
+// Justification: Will be used in game API endpoints (Phase 5, later tasks)
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Game {
     /// Unique game identifier.
@@ -78,6 +84,8 @@ pub struct Game {
 }
 
 /// A single move in a game.
+// Justification: Will be used in move API/WebSocket endpoints (Phase 5, later tasks)
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Move {
     /// Ply number (half-move count, 1-indexed).

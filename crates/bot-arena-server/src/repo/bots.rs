@@ -68,6 +68,8 @@ impl BotRepo {
     ///
     /// If the bot doesn't exist, it will be created with default values.
     /// If it already exists, this is a no-op.
+    // Justification: Will be used when registering bots for matches (Phase 5, later tasks)
+    #[allow(dead_code)]
     pub fn ensure(&self, name: &str) -> SqliteResult<()> {
         let conn = self.db.lock().unwrap();
         conn.execute("INSERT OR IGNORE INTO bots (name) VALUES (?1)", [name])?;
