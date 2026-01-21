@@ -151,6 +151,22 @@ pub async fn create_match(
     State(state): State<AppState>,
     Json(req): Json<CreateMatchRequest>,
 ) -> Result<Json<Match>, StatusCode> {
+    // Validate request
+    if req.white_bot.is_empty() || req.black_bot.is_empty() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    if req.white_bot == req.black_bot {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    if req.games <= 0 {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    if let Some(movetime) = req.movetime_ms {
+        if movetime <= 0 {
+            return Err(StatusCode::BAD_REQUEST);
+        }
+    }
+
     let match_repo = MatchRepo::new(state.db.clone());
     let bot_repo = BotRepo::new(state.db.clone());
 
@@ -508,5 +524,124 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM bots", [], |row| row.get(0))
             .unwrap();
         assert_eq!(count, 3); // Still only 3 bots
+    }
+
+    #[tokio::test]
+    async fn test_create_match_empty_bot_name() {
+        let state = test_state();
+
+        let req = CreateMatchRequest {
+            white_bot: "".to_string(),
+            black_bot: "bot2".to_string(),
+            games: 10,
+            movetime_ms: None,
+            opening_id: None,
+        };
+
+        let result = create_match(State(state), Json(req)).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn test_create_match_empty_black_bot_name() {
+        let state = test_state();
+
+        let req = CreateMatchRequest {
+            white_bot: "bot1".to_string(),
+            black_bot: "".to_string(),
+            games: 10,
+            movetime_ms: None,
+            opening_id: None,
+        };
+
+        let result = create_match(State(state), Json(req)).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn test_create_match_same_bot() {
+        let state = test_state();
+
+        let req = CreateMatchRequest {
+            white_bot: "bot1".to_string(),
+            black_bot: "bot1".to_string(),
+            games: 10,
+            movetime_ms: None,
+            opening_id: None,
+        };
+
+        let result = create_match(State(state), Json(req)).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn test_create_match_invalid_games_zero() {
+        let state = test_state();
+
+        let req = CreateMatchRequest {
+            white_bot: "bot1".to_string(),
+            black_bot: "bot2".to_string(),
+            games: 0,
+            movetime_ms: None,
+            opening_id: None,
+        };
+
+        let result = create_match(State(state), Json(req)).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn test_create_match_invalid_games_negative() {
+        let state = test_state();
+
+        let req = CreateMatchRequest {
+            white_bot: "bot1".to_string(),
+            black_bot: "bot2".to_string(),
+            games: -5,
+            movetime_ms: None,
+            opening_id: None,
+        };
+
+        let result = create_match(State(state), Json(req)).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn test_create_match_invalid_movetime_zero() {
+        let state = test_state();
+
+        let req = CreateMatchRequest {
+            white_bot: "bot1".to_string(),
+            black_bot: "bot2".to_string(),
+            games: 10,
+            movetime_ms: Some(0),
+            opening_id: None,
+        };
+
+        let result = create_match(State(state), Json(req)).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn test_create_match_invalid_movetime_negative() {
+        let state = test_state();
+
+        let req = CreateMatchRequest {
+            white_bot: "bot1".to_string(),
+            black_bot: "bot2".to_string(),
+            games: 10,
+            movetime_ms: Some(-100),
+            opening_id: None,
+        };
+
+        let result = create_match(State(state), Json(req)).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), StatusCode::BAD_REQUEST);
     }
 }
