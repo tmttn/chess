@@ -5,6 +5,7 @@
 //! - WebSocket for live match updates
 //! - Static files for the SvelteKit frontend
 
+mod analysis;
 mod api;
 mod db;
 mod elo;
@@ -27,6 +28,8 @@ pub struct AppState {
     pub db: DbPool,
     /// WebSocket broadcast channel for live match updates.
     pub ws_broadcast: ws::WsBroadcast,
+    /// Stockfish engine pool for position analysis.
+    pub engine_pool: Option<std::sync::Arc<analysis::EnginePool>>,
 }
 
 /// Health check endpoint.
@@ -45,7 +48,18 @@ async fn main() {
 
     let db = db::init_db("data/arena.db").expect("Failed to initialize database");
     let ws_broadcast = ws::create_broadcast();
-    let state = AppState { db, ws_broadcast };
+
+    // Create engine pool if STOCKFISH_PATH is set
+    let engine_pool = std::env::var("STOCKFISH_PATH").ok().map(|path| {
+        tracing::info!("Stockfish analysis enabled: {}", path);
+        std::sync::Arc::new(analysis::EnginePool::new(path, 2)) // Pool size of 2
+    });
+
+    let state = AppState {
+        db,
+        ws_broadcast,
+        engine_pool,
+    };
 
     // Spawn move watcher for live updates
     let db_for_watcher = state.db.clone();
