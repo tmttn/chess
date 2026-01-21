@@ -10,6 +10,7 @@ mod db;
 mod elo;
 mod models;
 mod repo;
+mod watcher;
 mod ws;
 
 use axum::routing::get;
@@ -45,6 +46,13 @@ async fn main() {
     let db = db::init_db("data/arena.db").expect("Failed to initialize database");
     let ws_broadcast = ws::create_broadcast();
     let state = AppState { db, ws_broadcast };
+
+    // Spawn move watcher for live updates
+    let db_for_watcher = state.db.clone();
+    let broadcast_for_watcher = state.ws_broadcast.clone();
+    tokio::spawn(async move {
+        watcher::watch_moves(db_for_watcher, broadcast_for_watcher).await;
+    });
 
     // CORS layer for cross-origin requests
     let cors = CorsLayer::new()
