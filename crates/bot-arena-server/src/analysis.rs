@@ -121,4 +121,50 @@ impl EnginePool {
 
         Ok(result)
     }
+
+    /// Get the Stockfish executable path.
+    #[cfg(test)]
+    pub fn stockfish_path(&self) -> &str {
+        &self.stockfish_path
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_analysis_result_default() {
+        let result = AnalysisResult {
+            depth: 0,
+            score_cp: None,
+            score_mate: None,
+            best_move: String::new(),
+            pv: Vec::new(),
+        };
+        assert_eq!(result.depth, 0);
+        assert!(result.score_cp.is_none());
+        assert!(result.best_move.is_empty());
+    }
+
+    #[test]
+    fn test_analysis_result_with_values() {
+        let result = AnalysisResult {
+            depth: 20,
+            score_cp: Some(125),
+            score_mate: None,
+            best_move: "e2e4".to_string(),
+            pv: vec!["e2e4".to_string(), "e7e5".to_string()],
+        };
+        assert_eq!(result.depth, 20);
+        assert_eq!(result.score_cp, Some(125));
+        assert_eq!(result.best_move, "e2e4");
+        assert_eq!(result.pv.len(), 2);
+    }
+
+    #[test]
+    fn test_engine_pool_new() {
+        let pool = EnginePool::new("stockfish".to_string(), 2);
+        assert_eq!(pool.stockfish_path(), "stockfish");
+    }
 }

@@ -207,7 +207,11 @@ mod tests {
     fn test_state() -> AppState {
         let db = init_db(":memory:").expect("Failed to init test db");
         let ws_broadcast = ws::create_broadcast();
-        AppState { db, ws_broadcast }
+        AppState {
+            db,
+            ws_broadcast,
+            engine_pool: None,
+        }
     }
 
     fn setup_test_data(state: &AppState) {
