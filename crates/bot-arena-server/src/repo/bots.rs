@@ -1,6 +1,7 @@
 //! Bot repository for database operations.
 
 use crate::db::DbPool;
+use crate::elo;
 use crate::models::Bot;
 use rusqlite::OptionalExtension;
 use rusqlite::Result as SqliteResult;
@@ -68,12 +69,57 @@ impl BotRepo {
     ///
     /// If the bot doesn't exist, it will be created with default values.
     /// If it already exists, this is a no-op.
-    // Justification: Will be used when registering bots for matches (Phase 5, later tasks)
+    // Justification: Will be used by match handlers when registering bots (Phase 5 tasks).
     #[allow(dead_code)]
     pub fn ensure(&self, name: &str) -> SqliteResult<()> {
         let conn = self.db.lock().unwrap();
         conn.execute("INSERT OR IGNORE INTO bots (name) VALUES (?1)", [name])?;
         Ok(())
+    }
+
+    /// Update bot stats and Elo after a game.
+    ///
+    /// # Arguments
+    /// * `name` - Bot name
+    /// * `opponent_rating` - Opponent's Elo rating
+    /// * `result` - 1.0 = win, 0.5 = draw, 0.0 = loss
+    // Justification: Will be used by match handlers to update ratings after games (Phase 5 tasks).
+    #[allow(dead_code)]
+    pub fn update_after_game(
+        &self,
+        name: &str,
+        opponent_rating: i32,
+        result: f64,
+    ) -> SqliteResult<i32> {
+        let conn = self.db.lock().unwrap();
+
+        // Get current rating
+        let current_rating: i32 = conn.query_row(
+            "SELECT elo_rating FROM bots WHERE name = ?1",
+            [name],
+            |row| row.get(0),
+        )?;
+
+        let new_rating = elo::new_rating(current_rating, opponent_rating, result);
+
+        let (wins, draws, losses) = match result {
+            r if r > 0.9 => (1, 0, 0),
+            r if r > 0.1 => (0, 1, 0),
+            _ => (0, 0, 1),
+        };
+
+        conn.execute(
+            "UPDATE bots SET
+                elo_rating = ?1,
+                games_played = games_played + 1,
+                wins = wins + ?2,
+                draws = draws + ?3,
+                losses = losses + ?4
+             WHERE name = ?5",
+            (new_rating, wins, draws, losses, name),
+        )?;
+
+        Ok(new_rating)
     }
 }
 
@@ -171,5 +217,23 @@ mod tests {
         assert_eq!(bot.wins, 0);
         assert_eq!(bot.losses, 0);
         assert_eq!(bot.draws, 0);
+    }
+
+    #[test]
+    fn test_update_after_game() {
+        let db = init_db(":memory:").unwrap();
+        let repo = BotRepo::new(db);
+
+        repo.ensure("bot_a").unwrap();
+        repo.ensure("bot_b").unwrap();
+
+        // bot_a wins against bot_b (both start at 1500)
+        let new_rating = repo.update_after_game("bot_a", 1500, 1.0).unwrap();
+        assert_eq!(new_rating, 1516);
+
+        let bot = repo.get("bot_a").unwrap().unwrap();
+        assert_eq!(bot.elo_rating, 1516);
+        assert_eq!(bot.games_played, 1);
+        assert_eq!(bot.wins, 1);
     }
 }

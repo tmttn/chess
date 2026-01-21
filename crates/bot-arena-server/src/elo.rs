@@ -1,15 +1,12 @@
 //! Elo rating calculation.
 //!
-//! This module will be used by match handlers to update bot ratings after games.
-
-// Allow dead_code: Module is newly added and will be integrated with match result handlers.
-// Functions are tested and ready for use when match completion logic is implemented.
-#![allow(dead_code)]
+//! This module provides functions for calculating Elo ratings after games.
+//! Used by `repo::bots::BotRepo::update_after_game`.
 
 const K_FACTOR: f64 = 32.0;
 
 /// Calculate expected score for player A against player B.
-pub fn expected_score(rating_a: i32, rating_b: i32) -> f64 {
+fn expected_score(rating_a: i32, rating_b: i32) -> f64 {
     1.0 / (1.0 + 10_f64.powf((rating_b - rating_a) as f64 / 400.0))
 }
 
@@ -19,7 +16,7 @@ pub fn expected_score(rating_a: i32, rating_b: i32) -> f64 {
 /// * `rating` - Current rating
 /// * `opponent_rating` - Opponent's rating
 /// * `actual` - Actual score (1.0 = win, 0.5 = draw, 0.0 = loss)
-pub fn new_rating(rating: i32, opponent_rating: i32, actual: f64) -> i32 {
+pub(crate) fn new_rating(rating: i32, opponent_rating: i32, actual: f64) -> i32 {
     let expected = expected_score(rating, opponent_rating);
     let new = rating as f64 + K_FACTOR * (actual - expected);
     new.round() as i32
