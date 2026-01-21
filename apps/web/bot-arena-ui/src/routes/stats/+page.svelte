@@ -1,19 +1,25 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { browser } from '$app/environment';
   import { api, type HeadToHeadMatrix, type HeadToHeadRecord } from '$lib/api';
 
   let matrix: HeadToHeadMatrix | null = $state(null);
   let loading = $state(true);
   let error = $state<string | null>(null);
 
-  onMount(async () => {
-    try {
-      matrix = await api.getHeadToHead();
-    } catch (e) {
-      error = e instanceof Error ? e.message : 'Failed to load head-to-head data';
-    } finally {
-      loading = false;
+  $effect(() => {
+    if (!browser) return;
+
+    async function loadData() {
+      try {
+        matrix = await api.getHeadToHead();
+      } catch (e) {
+        error = e instanceof Error ? e.message : 'Failed to load head-to-head data';
+      } finally {
+        loading = false;
+      }
     }
+
+    loadData();
   });
 
   /**

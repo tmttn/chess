@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { browser } from '$app/environment';
   import { api } from '$lib/api';
   import type { Match } from '$lib/types';
 
@@ -21,7 +21,9 @@
     }
   }
 
-  onMount(loadMatches);
+  $effect(() => {
+    if (browser) loadMatches();
+  });
 
   function prevPage() {
     if (offset >= limit) {

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { browser } from '$app/environment';
   import { api, type OpeningStats } from '$lib/api';
 
   let openings: OpeningStats[] = $state([]);
@@ -18,14 +18,20 @@
     })
   );
 
-  onMount(async () => {
-    try {
-      openings = await api.getOpenings();
-    } catch (e) {
-      error = e instanceof Error ? e.message : 'Failed to load openings';
-    } finally {
-      loading = false;
+  $effect(() => {
+    if (!browser) return;
+
+    async function loadData() {
+      try {
+        openings = await api.getOpenings();
+      } catch (e) {
+        error = e instanceof Error ? e.message : 'Failed to load openings';
+      } finally {
+        loading = false;
+      }
     }
+
+    loadData();
   });
 
   /**

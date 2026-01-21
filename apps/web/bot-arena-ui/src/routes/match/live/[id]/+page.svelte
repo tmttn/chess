@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { browser } from '$app/environment';
+  import { onDestroy } from 'svelte';
   import { page } from '$app/stores';
   import { api } from '$lib/api';
   import { parseFen, parseUciMove, getSideToMove, STARTING_FEN } from '$lib/fen';
@@ -22,29 +23,35 @@
   let store: ReturnType<typeof createLiveMatchStore> | null = null;
   let unsubscribe: (() => void) | null = null;
 
-  onMount(async () => {
-    if (!id) {
-      error = 'No match ID provided';
+  $effect(() => {
+    if (!browser) return;
+
+    async function loadData() {
+      if (!id) {
+        error = 'No match ID provided';
+        loading = false;
+        return;
+      }
+
+      try {
+        match = await api.getMatch(id);
+      } catch (e) {
+        error = e instanceof Error ? e.message : 'Failed to load match';
+        loading = false;
+        return;
+      }
+
       loading = false;
-      return;
+
+      // Set up WebSocket connection
+      store = createLiveMatchStore(id);
+      unsubscribe = store.subscribe(state => {
+        liveState = state;
+      });
+      store.connect();
     }
 
-    try {
-      match = await api.getMatch(id);
-    } catch (e) {
-      error = e instanceof Error ? e.message : 'Failed to load match';
-      loading = false;
-      return;
-    }
-
-    loading = false;
-
-    // Set up WebSocket connection
-    store = createLiveMatchStore(id);
-    unsubscribe = store.subscribe(state => {
-      liveState = state;
-    });
-    store.connect();
+    loadData();
   });
 
   onDestroy(() => {

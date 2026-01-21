@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { browser } from '$app/environment';
   import { page } from '$app/stores';
   import { api, getExportUrl, type BotProfile, type EloHistoryPoint } from '$lib/api';
 
@@ -20,19 +20,25 @@
     return profile.elo_history.slice(-20);
   });
 
-  onMount(async () => {
-    if (!name) {
-      error = 'No bot name provided';
-      loading = false;
-      return;
+  $effect(() => {
+    if (!browser) return;
+
+    async function loadData() {
+      if (!name) {
+        error = 'No bot name provided';
+        loading = false;
+        return;
+      }
+      try {
+        profile = await api.getBot(decodeURIComponent(name));
+      } catch (e) {
+        error = e instanceof Error ? e.message : 'Failed to load bot profile';
+      } finally {
+        loading = false;
+      }
     }
-    try {
-      profile = await api.getBot(decodeURIComponent(name));
-    } catch (e) {
-      error = e instanceof Error ? e.message : 'Failed to load bot profile';
-    } finally {
-      loading = false;
-    }
+
+    loadData();
   });
 
   /**

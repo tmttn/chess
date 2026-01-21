@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { browser } from '$app/environment';
   import { page } from '$app/stores';
   import { api, getExportUrl, type AnalysisResult } from '$lib/api';
   import { parseFen, parseUciMove, getSideToMove, STARTING_FEN } from '$lib/fen';
@@ -31,22 +31,28 @@
     }
   }
 
-  onMount(async () => {
-    if (!id) {
-      error = 'No match ID provided';
-      loading = false;
-      return;
-    }
-    try {
-      matchDetail = await api.getMatch(id);
-      if (matchDetail.games.length > 0) {
-        await loadGameMoves(matchDetail.games[0]);
+  $effect(() => {
+    if (!browser) return;
+
+    async function loadData() {
+      if (!id) {
+        error = 'No match ID provided';
+        loading = false;
+        return;
       }
-    } catch (e) {
-      error = e instanceof Error ? e.message : 'Failed to load match';
-    } finally {
-      loading = false;
+      try {
+        matchDetail = await api.getMatch(id);
+        if (matchDetail.games.length > 0) {
+          await loadGameMoves(matchDetail.games[0]);
+        }
+      } catch (e) {
+        error = e instanceof Error ? e.message : 'Failed to load match';
+      } finally {
+        loading = false;
+      }
     }
+
+    loadData();
   });
 
   async function selectGame(index: number) {

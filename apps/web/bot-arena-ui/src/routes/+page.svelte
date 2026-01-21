@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { browser } from '$app/environment';
   import { api } from '$lib/api';
   import type { Bot, Match } from '$lib/types';
 
@@ -8,17 +8,26 @@
   let loading = $state(true);
   let error = $state<string | null>(null);
 
-  onMount(async () => {
-    try {
-      [bots, recentMatches] = await Promise.all([
-        api.getBots(),
-        api.getMatches({ limit: 10 })
-      ]);
-    } catch (e) {
-      error = e instanceof Error ? e.message : 'Failed to load data';
-    } finally {
-      loading = false;
+  // Use $effect for data fetching in Svelte 5
+  $effect(() => {
+    if (!browser) return;
+
+    async function loadData() {
+      try {
+        const [botsData, matchesData] = await Promise.all([
+          api.getBots(),
+          api.getMatches({ limit: 10 })
+        ]);
+        bots = botsData;
+        recentMatches = matchesData;
+      } catch (e) {
+        error = e instanceof Error ? e.message : 'Failed to load data';
+      } finally {
+        loading = false;
+      }
     }
+
+    loadData();
   });
 
   function winRate(bot: Bot): string {
