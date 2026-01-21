@@ -4,8 +4,8 @@
 //! and a simple material + position evaluation function.
 
 use chess_core::{Color, Move, Piece};
-use chess_engine::{Position, StandardChess, is_king_attacked};
 use chess_engine::rules::RuleSet;
+use chess_engine::{is_king_attacked, Position, StandardChess};
 use std::io::{BufReader, Stdin, Stdout};
 use std::time::{Duration, Instant};
 use uci::{stdio_engine, GuiCommand, InfoBuilder, UciEngine};
@@ -19,73 +19,43 @@ const BISHOP_VALUE: i32 = 330;
 const ROOK_VALUE: i32 = 500;
 const QUEEN_VALUE: i32 = 900;
 
-/// Piece-square tables for positional evaluation (from white's perspective)
-/// Values are in centipawns, added to piece base value
-
+/// Piece-square tables for positional evaluation (from white's perspective).
+/// Values are in centipawns, added to piece base value.
 const PAWN_PST: [i32; 64] = [
-     0,  0,  0,  0,  0,  0,  0,  0,
-    50, 50, 50, 50, 50, 50, 50, 50,
-    10, 10, 20, 30, 30, 20, 10, 10,
-     5,  5, 10, 25, 25, 10,  5,  5,
-     0,  0,  0, 20, 20,  0,  0,  0,
-     5, -5,-10,  0,  0,-10, -5,  5,
-     5, 10, 10,-20,-20, 10, 10,  5,
-     0,  0,  0,  0,  0,  0,  0,  0,
+    0, 0, 0, 0, 0, 0, 0, 0, 50, 50, 50, 50, 50, 50, 50, 50, 10, 10, 20, 30, 30, 20, 10, 10, 5, 5,
+    10, 25, 25, 10, 5, 5, 0, 0, 0, 20, 20, 0, 0, 0, 5, -5, -10, 0, 0, -10, -5, 5, 5, 10, 10, -20,
+    -20, 10, 10, 5, 0, 0, 0, 0, 0, 0, 0, 0,
 ];
 
 const KNIGHT_PST: [i32; 64] = [
-    -50,-40,-30,-30,-30,-30,-40,-50,
-    -40,-20,  0,  0,  0,  0,-20,-40,
-    -30,  0, 10, 15, 15, 10,  0,-30,
-    -30,  5, 15, 20, 20, 15,  5,-30,
-    -30,  0, 15, 20, 20, 15,  0,-30,
-    -30,  5, 10, 15, 15, 10,  5,-30,
-    -40,-20,  0,  5,  5,  0,-20,-40,
-    -50,-40,-30,-30,-30,-30,-40,-50,
+    -50, -40, -30, -30, -30, -30, -40, -50, -40, -20, 0, 0, 0, 0, -20, -40, -30, 0, 10, 15, 15, 10,
+    0, -30, -30, 5, 15, 20, 20, 15, 5, -30, -30, 0, 15, 20, 20, 15, 0, -30, -30, 5, 10, 15, 15, 10,
+    5, -30, -40, -20, 0, 5, 5, 0, -20, -40, -50, -40, -30, -30, -30, -30, -40, -50,
 ];
 
 const BISHOP_PST: [i32; 64] = [
-    -20,-10,-10,-10,-10,-10,-10,-20,
-    -10,  0,  0,  0,  0,  0,  0,-10,
-    -10,  0,  5, 10, 10,  5,  0,-10,
-    -10,  5,  5, 10, 10,  5,  5,-10,
-    -10,  0, 10, 10, 10, 10,  0,-10,
-    -10, 10, 10, 10, 10, 10, 10,-10,
-    -10,  5,  0,  0,  0,  0,  5,-10,
-    -20,-10,-10,-10,-10,-10,-10,-20,
+    -20, -10, -10, -10, -10, -10, -10, -20, -10, 0, 0, 0, 0, 0, 0, -10, -10, 0, 5, 10, 10, 5, 0,
+    -10, -10, 5, 5, 10, 10, 5, 5, -10, -10, 0, 10, 10, 10, 10, 0, -10, -10, 10, 10, 10, 10, 10, 10,
+    -10, -10, 5, 0, 0, 0, 0, 5, -10, -20, -10, -10, -10, -10, -10, -10, -20,
 ];
 
 const ROOK_PST: [i32; 64] = [
-     0,  0,  0,  0,  0,  0,  0,  0,
-     5, 10, 10, 10, 10, 10, 10,  5,
-    -5,  0,  0,  0,  0,  0,  0, -5,
-    -5,  0,  0,  0,  0,  0,  0, -5,
-    -5,  0,  0,  0,  0,  0,  0, -5,
-    -5,  0,  0,  0,  0,  0,  0, -5,
-    -5,  0,  0,  0,  0,  0,  0, -5,
-     0,  0,  0,  5,  5,  0,  0,  0,
+    0, 0, 0, 0, 0, 0, 0, 0, 5, 10, 10, 10, 10, 10, 10, 5, -5, 0, 0, 0, 0, 0, 0, -5, -5, 0, 0, 0, 0,
+    0, 0, -5, -5, 0, 0, 0, 0, 0, 0, -5, -5, 0, 0, 0, 0, 0, 0, -5, -5, 0, 0, 0, 0, 0, 0, -5, 0, 0,
+    0, 5, 5, 0, 0, 0,
 ];
 
 const QUEEN_PST: [i32; 64] = [
-    -20,-10,-10, -5, -5,-10,-10,-20,
-    -10,  0,  0,  0,  0,  0,  0,-10,
-    -10,  0,  5,  5,  5,  5,  0,-10,
-     -5,  0,  5,  5,  5,  5,  0, -5,
-      0,  0,  5,  5,  5,  5,  0, -5,
-    -10,  5,  5,  5,  5,  5,  0,-10,
-    -10,  0,  5,  0,  0,  0,  0,-10,
-    -20,-10,-10, -5, -5,-10,-10,-20,
+    -20, -10, -10, -5, -5, -10, -10, -20, -10, 0, 0, 0, 0, 0, 0, -10, -10, 0, 5, 5, 5, 5, 0, -10,
+    -5, 0, 5, 5, 5, 5, 0, -5, 0, 0, 5, 5, 5, 5, 0, -5, -10, 5, 5, 5, 5, 5, 0, -10, -10, 0, 5, 0, 0,
+    0, 0, -10, -20, -10, -10, -5, -5, -10, -10, -20,
 ];
 
 const KING_MIDDLEGAME_PST: [i32; 64] = [
-    -30,-40,-40,-50,-50,-40,-40,-30,
-    -30,-40,-40,-50,-50,-40,-40,-30,
-    -30,-40,-40,-50,-50,-40,-40,-30,
-    -30,-40,-40,-50,-50,-40,-40,-30,
-    -20,-30,-30,-40,-40,-30,-30,-20,
-    -10,-20,-20,-20,-20,-20,-20,-10,
-     20, 20,  0,  0,  0,  0, 20, 20,
-     20, 30, 10,  0,  0, 10, 30, 20,
+    -30, -40, -40, -50, -50, -40, -40, -30, -30, -40, -40, -50, -50, -40, -40, -30, -30, -40, -40,
+    -50, -50, -40, -40, -30, -30, -40, -40, -50, -50, -40, -40, -30, -20, -30, -30, -40, -40, -30,
+    -30, -20, -10, -20, -20, -20, -20, -20, -20, -10, 20, 20, 0, 0, 0, 0, 20, 20, 20, 30, 10, 0, 0,
+    10, 30, 20,
 ];
 
 /// Search state
@@ -107,7 +77,7 @@ impl Searcher {
     }
 
     fn check_time(&mut self) {
-        if self.nodes % 4096 == 0 && self.start_time.elapsed() > self.max_time {
+        if self.nodes.is_multiple_of(4096) && self.start_time.elapsed() > self.max_time {
             self.stopped = true;
         }
     }
@@ -246,7 +216,6 @@ fn alpha_beta(
 fn search(position: &Position, max_time: Duration, engine: &mut StdioEngine) -> Option<Move> {
     let mut searcher = Searcher::new(max_time);
     let mut best_move: Option<Move> = None;
-    let mut best_score = i32::MIN;
 
     let moves = StandardChess.generate_moves(position);
     if moves.is_empty() {
@@ -285,7 +254,7 @@ fn search(position: &Position, max_time: Duration, engine: &mut StdioEngine) -> 
         // Update best move if we completed this depth
         if let Some(mv) = current_best {
             best_move = Some(mv);
-            best_score = current_score;
+            let best_score = current_score;
 
             // Send search info
             let info = InfoBuilder::new()
@@ -340,9 +309,9 @@ fn main() {
             GuiCommand::Position { fen, moves } => {
                 // Set up position from FEN or starting position
                 position = match fen {
-                    Some(f) => Position::from_fen(&f).unwrap_or_else(|_| {
-                        StandardChess.initial_position()
-                    }),
+                    Some(f) => {
+                        Position::from_fen(&f).unwrap_or_else(|_| StandardChess.initial_position())
+                    }
                     None => StandardChess.initial_position(),
                 };
 

@@ -435,11 +435,26 @@ mod tests {
 
         let result = GameResult {
             moves: vec![
-                MoveRecord { uci: "e2e4".to_string(), search_info: None },
-                MoveRecord { uci: "e7e5".to_string(), search_info: None },
-                MoveRecord { uci: "g1f3".to_string(), search_info: None },
-                MoveRecord { uci: "b8c6".to_string(), search_info: None },
-                MoveRecord { uci: "f1c4".to_string(), search_info: None },
+                MoveRecord {
+                    uci: "e2e4".to_string(),
+                    search_info: None,
+                },
+                MoveRecord {
+                    uci: "e7e5".to_string(),
+                    search_info: None,
+                },
+                MoveRecord {
+                    uci: "g1f3".to_string(),
+                    search_info: None,
+                },
+                MoveRecord {
+                    uci: "b8c6".to_string(),
+                    search_info: None,
+                },
+                MoveRecord {
+                    uci: "f1c4".to_string(),
+                    search_info: None,
+                },
             ],
             result: MatchResult::WhiteWins,
             white_name: "Minimax".to_string(),
@@ -479,7 +494,10 @@ mod tests {
         let pgn_path = temp_dir.join("test_opening_no_eco.pgn");
 
         let result = GameResult {
-            moves: vec![MoveRecord { uci: "e2e4".to_string(), search_info: None }],
+            moves: vec![MoveRecord {
+                uci: "e2e4".to_string(),
+                search_info: None,
+            }],
             result: MatchResult::Draw,
             white_name: "Engine1".to_string(),
             black_name: "Engine2".to_string(),

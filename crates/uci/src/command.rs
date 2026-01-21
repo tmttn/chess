@@ -196,7 +196,13 @@ mod tests {
     #[test]
     fn parse_position_startpos() {
         let cmd = GuiCommand::parse("position startpos").unwrap();
-        assert_eq!(cmd, GuiCommand::Position { fen: None, moves: vec![] });
+        assert_eq!(
+            cmd,
+            GuiCommand::Position {
+                fen: None,
+                moves: vec![]
+            }
+        );
     }
 
     #[test]
@@ -214,12 +220,15 @@ mod tests {
     #[test]
     fn parse_position_fen() {
         let cmd = GuiCommand::parse(
-            "position fen rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
-        ).unwrap();
+            "position fen rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1",
+        )
+        .unwrap();
         assert_eq!(
             cmd,
             GuiCommand::Position {
-                fen: Some("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1".to_string()),
+                fen: Some(
+                    "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1".to_string()
+                ),
                 moves: vec![]
             }
         );

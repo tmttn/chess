@@ -118,22 +118,19 @@ mod tests {
     // 8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - -
     #[test]
     fn perft_position3_depth_1() {
-        let position =
-            Position::from_fen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1").unwrap();
+        let position = Position::from_fen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1").unwrap();
         assert_eq!(perft(&position, 1), 14);
     }
 
     #[test]
     fn perft_position3_depth_2() {
-        let position =
-            Position::from_fen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1").unwrap();
+        let position = Position::from_fen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1").unwrap();
         assert_eq!(perft(&position, 2), 191);
     }
 
     #[test]
     fn perft_position3_depth_3() {
-        let position =
-            Position::from_fen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1").unwrap();
+        let position = Position::from_fen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1").unwrap();
         assert_eq!(perft(&position, 3), 2812);
     }
 
@@ -141,28 +138,25 @@ mod tests {
     // r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq -
     #[test]
     fn perft_position4_depth_1() {
-        let position = Position::from_fen(
-            "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1",
-        )
-        .unwrap();
+        let position =
+            Position::from_fen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1")
+                .unwrap();
         assert_eq!(perft(&position, 1), 6);
     }
 
     #[test]
     fn perft_position4_depth_2() {
-        let position = Position::from_fen(
-            "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1",
-        )
-        .unwrap();
+        let position =
+            Position::from_fen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1")
+                .unwrap();
         assert_eq!(perft(&position, 2), 264);
     }
 
     #[test]
     fn perft_position4_depth_3() {
-        let position = Position::from_fen(
-            "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1",
-        )
-        .unwrap();
+        let position =
+            Position::from_fen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1")
+                .unwrap();
         assert_eq!(perft(&position, 3), 9467);
     }
 

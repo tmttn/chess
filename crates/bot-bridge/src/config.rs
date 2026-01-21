@@ -24,11 +24,7 @@ pub struct BotConfig {
 impl Config {
     pub async fn load() -> Result<Self, Box<dyn std::error::Error>> {
         // Look for bots.toml in current directory or parent directories
-        let paths = [
-            "bots.toml",
-            "../bots.toml",
-            "../../bots.toml",
-        ];
+        let paths = ["bots.toml", "../bots.toml", "../../bots.toml"];
 
         for path in paths {
             if Path::new(path).exists() {

@@ -572,11 +572,26 @@ mod tests {
 
         let db = OpeningDatabase::with_openings(builtin_openings());
         let moves = vec![
-            MoveRecord { uci: "e2e4".to_string(), search_info: None },
-            MoveRecord { uci: "e7e5".to_string(), search_info: None },
-            MoveRecord { uci: "g1f3".to_string(), search_info: None },
-            MoveRecord { uci: "b8c6".to_string(), search_info: None },
-            MoveRecord { uci: "f1c4".to_string(), search_info: None },
+            MoveRecord {
+                uci: "e2e4".to_string(),
+                search_info: None,
+            },
+            MoveRecord {
+                uci: "e7e5".to_string(),
+                search_info: None,
+            },
+            MoveRecord {
+                uci: "g1f3".to_string(),
+                search_info: None,
+            },
+            MoveRecord {
+                uci: "b8c6".to_string(),
+                search_info: None,
+            },
+            MoveRecord {
+                uci: "f1c4".to_string(),
+                search_info: None,
+            },
         ];
 
         let detected = detect_opening(&moves, &db);
@@ -593,8 +608,14 @@ mod tests {
 
         let db = OpeningDatabase::with_openings(builtin_openings());
         let moves = vec![
-            MoveRecord { uci: "e2e4".to_string(), search_info: None },
-            MoveRecord { uci: "c7c5".to_string(), search_info: None },
+            MoveRecord {
+                uci: "e2e4".to_string(),
+                search_info: None,
+            },
+            MoveRecord {
+                uci: "c7c5".to_string(),
+                search_info: None,
+            },
         ];
 
         let detected = detect_opening(&moves, &db);
@@ -610,8 +631,14 @@ mod tests {
         let db = OpeningDatabase::with_openings(builtin_openings());
         // Start with an unusual move that's not in the database
         let moves = vec![
-            MoveRecord { uci: "a2a3".to_string(), search_info: None },
-            MoveRecord { uci: "a7a6".to_string(), search_info: None },
+            MoveRecord {
+                uci: "a2a3".to_string(),
+                search_info: None,
+            },
+            MoveRecord {
+                uci: "a7a6".to_string(),
+                search_info: None,
+            },
         ];
 
         let detected = detect_opening(&moves, &db);
@@ -632,7 +659,10 @@ mod tests {
     #[test]
     fn test_game_result_with_detected_opening() {
         let result = GameResult {
-            moves: vec![MoveRecord { uci: "e2e4".to_string(), search_info: None }],
+            moves: vec![MoveRecord {
+                uci: "e2e4".to_string(),
+                search_info: None,
+            }],
             result: MatchResult::Draw,
             white_name: "White".to_string(),
             black_name: "Black".to_string(),

@@ -20,8 +20,7 @@ impl BotSession {
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         // Parse command and args
         let parts: Vec<&str> = command.split_whitespace().collect();
-        let (program, args) = parts.split_first()
-            .ok_or("Empty command")?;
+        let (program, args) = parts.split_first().ok_or("Empty command")?;
 
         let mut child = Command::new(program)
             .args(args)
@@ -30,10 +29,8 @@ impl BotSession {
             .stderr(Stdio::piped())
             .spawn()?;
 
-        let stdin = child.stdin.take()
-            .ok_or("Failed to open stdin")?;
-        let stdout = child.stdout.take()
-            .ok_or("Failed to open stdout")?;
+        let stdin = child.stdin.take().ok_or("Failed to open stdin")?;
+        let stdout = child.stdout.take().ok_or("Failed to open stdout")?;
 
         // Generate session ID
         let id = format!("{:x}", rand_id());

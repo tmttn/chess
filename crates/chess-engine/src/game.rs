@@ -203,17 +203,16 @@ impl Game {
 
         // Find the matching legal move (to get correct flags)
         let legal_moves = self.legal_moves();
-        let matching = legal_moves
-            .as_slice()
-            .iter()
-            .find(|lm| lm.from() == m.from() && lm.to() == m.to() && {
+        let matching = legal_moves.as_slice().iter().find(|lm| {
+            lm.from() == m.from() && lm.to() == m.to() && {
                 // For promotions, also match the promotion piece
                 if m.flag().is_promotion() {
                     lm.flag() == m.flag()
                 } else {
                     true
                 }
-            });
+            }
+        });
 
         match matching {
             Some(&legal_move) => {
@@ -408,13 +407,9 @@ mod tests {
 
     #[test]
     fn stalemate() {
-        let game =
-            Game::from_fen("7k/5Q2/6K1/8/8/8/8/8 b - - 0 1").unwrap();
+        let game = Game::from_fen("7k/5Q2/6K1/8/8/8/8/8 b - - 0 1").unwrap();
         assert!(game.is_game_over());
-        assert_eq!(
-            game.result(),
-            Some(GameResult::Draw(DrawReason::Stalemate))
-        );
+        assert_eq!(game.result(), Some(GameResult::Draw(DrawReason::Stalemate)));
     }
 
     #[test]
@@ -498,10 +493,7 @@ mod tests {
         let mut game = Game::new();
         game.agree_draw().unwrap();
         assert!(game.is_game_over());
-        assert_eq!(
-            game.result(),
-            Some(GameResult::Draw(DrawReason::Agreement))
-        );
+        assert_eq!(game.result(), Some(GameResult::Draw(DrawReason::Agreement)));
     }
 
     #[test]

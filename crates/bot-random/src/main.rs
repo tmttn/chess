@@ -3,8 +3,8 @@
 //! This is the simplest possible UCI bot, useful as a template
 //! for more sophisticated bots.
 
-use chess_engine::{Position, StandardChess};
 use chess_engine::rules::RuleSet;
+use chess_engine::{Position, StandardChess};
 use rand::seq::SliceRandom;
 use uci::{stdio_engine, GuiCommand};
 
@@ -39,9 +39,9 @@ fn main() {
             GuiCommand::Position { fen, moves } => {
                 // Set up position from FEN or starting position
                 position = match fen {
-                    Some(f) => Position::from_fen(&f).unwrap_or_else(|_| {
-                        StandardChess.initial_position()
-                    }),
+                    Some(f) => {
+                        Position::from_fen(&f).unwrap_or_else(|_| StandardChess.initial_position())
+                    }
                     None => StandardChess.initial_position(),
                 };
 

@@ -178,26 +178,15 @@ const ROOK_MAGICS: [u64; 64] = [
 
 // Bit counts for bishop relevant occupancy (excluding edges).
 const BISHOP_BITS: [u8; 64] = [
-    6, 5, 5, 5, 5, 5, 5, 6,
-    5, 5, 5, 5, 5, 5, 5, 5,
-    5, 5, 7, 7, 7, 7, 5, 5,
-    5, 5, 7, 9, 9, 7, 5, 5,
-    5, 5, 7, 9, 9, 7, 5, 5,
-    5, 5, 7, 7, 7, 7, 5, 5,
-    5, 5, 5, 5, 5, 5, 5, 5,
-    6, 5, 5, 5, 5, 5, 5, 6,
+    6, 5, 5, 5, 5, 5, 5, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 7, 7, 7, 7, 5, 5, 5, 5, 7, 9, 9, 7, 5, 5,
+    5, 5, 7, 9, 9, 7, 5, 5, 5, 5, 7, 7, 7, 7, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 5, 5, 5, 5, 5, 5, 6,
 ];
 
 // Bit counts for rook relevant occupancy.
 const ROOK_BITS: [u8; 64] = [
-    12, 11, 11, 11, 11, 11, 11, 12,
-    11, 10, 10, 10, 10, 10, 10, 11,
-    11, 10, 10, 10, 10, 10, 10, 11,
-    11, 10, 10, 10, 10, 10, 10, 11,
-    11, 10, 10, 10, 10, 10, 10, 11,
-    11, 10, 10, 10, 10, 10, 10, 11,
-    11, 10, 10, 10, 10, 10, 10, 11,
-    12, 11, 11, 11, 11, 11, 11, 12,
+    12, 11, 11, 11, 11, 11, 11, 12, 11, 10, 10, 10, 10, 10, 10, 11, 11, 10, 10, 10, 10, 10, 10, 11,
+    11, 10, 10, 10, 10, 10, 10, 11, 11, 10, 10, 10, 10, 10, 10, 11, 11, 10, 10, 10, 10, 10, 10, 11,
+    11, 10, 10, 10, 10, 10, 10, 11, 12, 11, 11, 11, 11, 11, 11, 12,
 ];
 
 impl AttackTables {
@@ -375,7 +364,7 @@ fn bishop_attacks_slow(sq: u8, blockers: Bitboard) -> Bitboard {
     for (dr, df) in [(1, 1), (1, -1), (-1, 1), (-1, -1)] {
         let mut r = rank + dr;
         let mut f = file + df;
-        while r >= 0 && r <= 7 && f >= 0 && f <= 7 {
+        while (0..=7).contains(&r) && (0..=7).contains(&f) {
             let bit = 1u64 << (r * 8 + f);
             attacks |= bit;
             if blockers.0 & bit != 0 {
@@ -398,7 +387,7 @@ fn rook_attacks_slow(sq: u8, blockers: Bitboard) -> Bitboard {
     for (dr, df) in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
         let mut r = rank + dr;
         let mut f = file + df;
-        while r >= 0 && r <= 7 && f >= 0 && f <= 7 {
+        while (0..=7).contains(&r) && (0..=7).contains(&f) {
             let bit = 1u64 << (r * 8 + f);
             attacks |= bit;
             if blockers.0 & bit != 0 {

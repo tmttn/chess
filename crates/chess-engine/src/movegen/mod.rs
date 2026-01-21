@@ -182,8 +182,7 @@ fn generate_pawn_moves(position: &Position, moves: &mut MoveList) {
     };
 
     for to in double_pushes {
-        let from =
-            unsafe { Square::from_index_unchecked((to.index() as i8 - 2 * push_dir) as u8) };
+        let from = unsafe { Square::from_index_unchecked((to.index() as i8 - 2 * push_dir) as u8) };
         moves.push(Move::new(from, to, MoveFlag::DoublePush));
     }
 
@@ -313,9 +312,14 @@ fn generate_castling_moves(position: &Position, moves: &mut MoveList) {
             Color::Black => Square::F8,
         };
 
-        if (occupied & between).is_empty() && !is_square_attacked(position, pass_through, us.opposite())
+        if (occupied & between).is_empty()
+            && !is_square_attacked(position, pass_through, us.opposite())
         {
-            moves.push(Move::new(king_start, king_side_target, MoveFlag::CastleKingside));
+            moves.push(Move::new(
+                king_start,
+                king_side_target,
+                MoveFlag::CastleKingside,
+            ));
         }
     }
 
@@ -338,7 +342,8 @@ fn generate_castling_moves(position: &Position, moves: &mut MoveList) {
             Color::Black => Square::D8,
         };
 
-        if (occupied & between).is_empty() && !is_square_attacked(position, pass_through, us.opposite())
+        if (occupied & between).is_empty()
+            && !is_square_attacked(position, pass_through, us.opposite())
         {
             moves.push(Move::new(
                 king_start,
@@ -597,10 +602,7 @@ mod tests {
         assert_eq!(new_pos.side_to_move, Color::Black);
         assert!(new_pos.piece_at(e4).is_some());
         assert!(new_pos.piece_at(e2).is_none());
-        assert_eq!(
-            new_pos.en_passant,
-            Some(Square::new(File::E, Rank::R3))
-        );
+        assert_eq!(new_pos.en_passant, Some(Square::new(File::E, Rank::R3)));
     }
 
     #[test]
@@ -611,10 +613,7 @@ mod tests {
         let m = Move::normal(g1, f3);
 
         let new_pos = make_move(&position, m);
-        assert_eq!(
-            new_pos.piece_at(f3),
-            Some((Piece::Knight, Color::White))
-        );
+        assert_eq!(new_pos.piece_at(f3), Some((Piece::Knight, Color::White)));
         assert!(new_pos.piece_at(g1).is_none());
     }
 
@@ -699,8 +698,7 @@ mod tests {
     #[test]
     fn promotion() {
         // Position with pawn about to promote
-        let position =
-            Position::from_fen("8/P7/8/8/8/8/8/4K2k w - - 0 1").unwrap();
+        let position = Position::from_fen("8/P7/8/8/8/8/8/4K2k w - - 0 1").unwrap();
         let moves = generate_moves(&position);
 
         // Should have 4 promotion moves (Q, R, B, N)

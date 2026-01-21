@@ -111,12 +111,12 @@ impl RuleSet for StandardChess {
         }
 
         // K+N vs K or K vs K+N
-        if white_bishop_count == 0 && black_bishop_count == 0 {
-            if (white_knights == 1 && black_knights == 0)
-                || (white_knights == 0 && black_knights == 1)
-            {
-                return true;
-            }
+        if white_bishop_count == 0
+            && black_bishop_count == 0
+            && ((white_knights == 1 && black_knights == 0)
+                || (white_knights == 0 && black_knights == 1))
+        {
+            return true;
         }
 
         // K+B vs K or K vs K+B
@@ -173,13 +173,11 @@ mod tests {
     #[test]
     fn checkmate_fools_mate() {
         // Fool's mate position - black has checkmated white
-        let pos = Position::from_fen("rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 0 1")
-            .unwrap();
+        let pos =
+            Position::from_fen("rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 0 1")
+                .unwrap();
         assert!(StandardChess.is_check(&pos));
-        assert_eq!(
-            StandardChess.game_result(&pos),
-            Some(GameResult::BlackWins)
-        );
+        assert_eq!(StandardChess.game_result(&pos), Some(GameResult::BlackWins));
     }
 
     #[test]

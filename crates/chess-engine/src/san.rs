@@ -53,7 +53,9 @@ pub fn move_to_san(position: &Position, m: Move) -> String {
 
     let from = m.from();
     let to = m.to();
-    let (piece, _color) = position.piece_at(from).expect("move has no piece at from square");
+    let (piece, _color) = position
+        .piece_at(from)
+        .expect("move has no piece at from square");
 
     // Piece letter (except for pawns)
     if piece != Piece::Pawn {
@@ -84,7 +86,9 @@ pub fn move_to_san(position: &Position, m: Move) -> String {
     if m.flag().is_promotion() {
         san.push('=');
         san.push(piece_to_san_char(
-            m.flag().promotion_piece().expect("promotion flag without piece"),
+            m.flag()
+                .promotion_piece()
+                .expect("promotion flag without piece"),
         ));
     }
 
@@ -124,6 +128,9 @@ struct ParsedSan {
     from_rank: Option<Rank>,
     to_square: Square,
     promotion: Option<Piece>,
+    // Note: is_capture is parsed but not used for move matching since
+    // we match based on piece, source, and destination squares.
+    #[allow(dead_code)]
     is_capture: bool,
 }
 
@@ -396,11 +403,11 @@ fn san_char_to_piece(c: char) -> Option<Piece> {
 }
 
 fn file_to_char(file: File) -> char {
-    (b'a' + file.index() as u8) as char
+    (b'a' + file.index()) as char
 }
 
 fn rank_to_char(rank: Rank) -> char {
-    (b'1' + rank.index() as u8) as char
+    (b'1' + rank.index()) as char
 }
 
 fn char_to_file(c: char) -> Option<File> {
@@ -456,8 +463,9 @@ mod tests {
     #[test]
     fn san_pawn_capture() {
         // Position where e4 pawn can capture d5 pawn
-        let pos = Position::from_fen("rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 2")
-            .unwrap();
+        let pos =
+            Position::from_fen("rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 2")
+                .unwrap();
         let e4 = Square::new(File::E, Rank::R4);
         let d5 = Square::new(File::D, Rank::R5);
         let m = Move::normal(e4, d5);
@@ -466,8 +474,7 @@ mod tests {
 
     #[test]
     fn san_castling_kingside() {
-        let pos =
-            Position::from_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1").unwrap();
+        let pos = Position::from_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1").unwrap();
         let e1 = Square::new(File::E, Rank::R1);
         let g1 = Square::new(File::G, Rank::R1);
         let m = Move::new(e1, g1, MoveFlag::CastleKingside);
@@ -476,8 +483,7 @@ mod tests {
 
     #[test]
     fn san_castling_queenside() {
-        let pos =
-            Position::from_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1").unwrap();
+        let pos = Position::from_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1").unwrap();
         let e1 = Square::new(File::E, Rank::R1);
         let c1 = Square::new(File::C, Rank::R1);
         let m = Move::new(e1, c1, MoveFlag::CastleQueenside);
@@ -542,8 +548,7 @@ mod tests {
 
     #[test]
     fn parse_san_castling() {
-        let pos =
-            Position::from_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1").unwrap();
+        let pos = Position::from_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1").unwrap();
         let m = san_to_move(&pos, "O-O").unwrap();
         assert_eq!(m.flag(), MoveFlag::CastleKingside);
 

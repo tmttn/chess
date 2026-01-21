@@ -220,8 +220,17 @@ impl EngineInfo {
 fn is_info_keyword(s: &str) -> bool {
     matches!(
         s,
-        "depth" | "seldepth" | "score" | "nodes" | "nps" | "time"
-        | "pv" | "currmove" | "currmovenumber" | "hashfull" | "string"
+        "depth"
+            | "seldepth"
+            | "score"
+            | "nodes"
+            | "nps"
+            | "time"
+            | "pv"
+            | "currmove"
+            | "currmovenumber"
+            | "hashfull"
+            | "string"
     )
 }
 

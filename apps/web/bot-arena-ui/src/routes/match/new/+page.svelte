@@ -105,7 +105,7 @@
       </div>
 
       {#if error}
-        <p class="error">{error}</p>
+        <p class="error" role="alert">{error}</p>
       {/if}
 
       <button type="submit" disabled={submitting}>

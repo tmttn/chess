@@ -18,12 +18,12 @@
 //! - `info string ext:<name> <json>` - Custom debug info
 
 mod command;
-mod info;
 mod extension;
+mod info;
 
-pub use command::{GuiCommand, GoOptions};
-pub use info::{EngineInfo, Score, InfoBuilder};
+pub use command::{GoOptions, GuiCommand};
 pub use extension::{Extension, ExtensionValue};
+pub use info::{EngineInfo, InfoBuilder, Score};
 
 use std::io::{BufRead, Write};
 use thiserror::Error;
@@ -42,7 +42,10 @@ pub enum UciError {
 #[derive(Debug, Clone, PartialEq)]
 pub enum EngineMessage {
     /// Engine identification.
-    Id { name: Option<String>, author: Option<String> },
+    Id {
+        name: Option<String>,
+        author: Option<String>,
+    },
     /// UCI initialization complete.
     UciOk,
     /// Engine is ready.
@@ -74,12 +77,10 @@ impl EngineMessage {
             EngineMessage::UciOk => "uciok".to_string(),
             EngineMessage::ReadyOk => "readyok".to_string(),
             EngineMessage::Info(info) => info.to_uci(),
-            EngineMessage::BestMove { mv, ponder } => {
-                match ponder {
-                    Some(p) => format!("bestmove {} ponder {}", mv, p),
-                    None => format!("bestmove {}", mv),
-                }
-            }
+            EngineMessage::BestMove { mv, ponder } => match ponder {
+                Some(p) => format!("bestmove {} ponder {}", mv, p),
+                None => format!("bestmove {}", mv),
+            },
             EngineMessage::Extension(ext) => {
                 format!("extension {} description \"{}\"", ext.name, ext.description)
             }
@@ -160,8 +161,5 @@ impl<R: BufRead, W: Write> UciEngine<R, W> {
 
 /// Create a UCI engine using stdin/stdout.
 pub fn stdio_engine() -> UciEngine<std::io::BufReader<std::io::Stdin>, std::io::Stdout> {
-    UciEngine::new(
-        std::io::BufReader::new(std::io::stdin()),
-        std::io::stdout(),
-    )
+    UciEngine::new(std::io::BufReader::new(std::io::stdin()), std::io::stdout())
 }

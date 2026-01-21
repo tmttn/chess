@@ -7,12 +7,12 @@
 mod config;
 mod session;
 
+use futures_util::{SinkExt, StreamExt};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::sync::RwLock;
-use futures_util::{SinkExt, StreamExt};
 use tokio_tungstenite::tungstenite::Message;
 
 use config::Config;
@@ -28,7 +28,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let listener = TcpListener::bind(&addr).await?;
 
     println!("Bot bridge listening on ws://{}", addr);
-    println!("Available bots: {:?}", config.bots.keys().collect::<Vec<_>>());
+    println!(
+        "Available bots: {:?}",
+        config.bots.keys().collect::<Vec<_>>()
+    );
 
     while let Ok((stream, peer)) = listener.accept().await {
         let config = Arc::clone(&config);

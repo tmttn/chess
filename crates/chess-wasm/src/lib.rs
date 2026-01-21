@@ -214,8 +214,12 @@ impl Game {
                     .collect();
 
                 if !same_piece_moves.is_empty() {
-                    let same_file = same_piece_moves.iter().any(|mv| mv.from().file() == from.file());
-                    let same_rank = same_piece_moves.iter().any(|mv| mv.from().rank() == from.rank());
+                    let same_file = same_piece_moves
+                        .iter()
+                        .any(|mv| mv.from().file() == from.file());
+                    let same_rank = same_piece_moves
+                        .iter()
+                        .any(|mv| mv.from().rank() == from.rank());
 
                     if !same_file {
                         san.push(from.to_algebraic().chars().next().unwrap());

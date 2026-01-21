@@ -41,7 +41,10 @@ impl ExtensionValue {
         V: Into<ExtensionValue>,
     {
         ExtensionValue::Object(
-            pairs.into_iter().map(|(k, v)| (k.into(), v.into())).collect()
+            pairs
+                .into_iter()
+                .map(|(k, v)| (k.into(), v.into()))
+                .collect(),
         )
     }
 
