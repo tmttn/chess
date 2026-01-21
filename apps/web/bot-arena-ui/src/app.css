@@ -7,6 +7,9 @@
   --highlight: #e94560;
   --success: #4ade80;
   --warning: #fbbf24;
+  --border: #0f3460;
+  --eval-black: #333;
+  --eval-white: #eee;
 }
 
 * {

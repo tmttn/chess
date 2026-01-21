@@ -5,6 +5,7 @@
   import { parseFen, parseUciMove, getSideToMove, STARTING_FEN } from '$lib/fen';
   import { Board } from '@tmttn-chess/board';
   import type { MatchDetail, Move, Game } from '$lib/types';
+  import EvalBar from '$lib/components/EvalBar.svelte';
 
   let matchDetail: MatchDetail | null = $state(null);
   let moves: Move[] = $state([]);
@@ -157,8 +158,13 @@
 
     <div class="content">
       <div class="board-section">
-        <div class="board-container">
-          <Board {board} legalMoves={[]} {lastMove} {sideToMove} />
+        <div class="board-with-eval">
+          {#if analysis}
+            <EvalBar scoreCp={analysis.score_cp} scoreMate={analysis.score_mate} />
+          {/if}
+          <div class="board-container">
+            <Board {board} legalMoves={[]} {lastMove} {sideToMove} />
+          </div>
         </div>
         <div class="controls">
           <button onclick={() => goTo(0)} title="Start (Home)">|&lt;</button>
@@ -311,6 +317,13 @@
     display: flex;
     flex-direction: column;
     gap: 1rem;
+  }
+
+  .board-with-eval {
+    display: flex;
+    gap: 0.5rem;
+    align-items: stretch;
+    height: fit-content;
   }
 
   .board-container {
