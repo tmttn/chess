@@ -2,6 +2,30 @@ import type { Bot, Match, MatchDetail, Move } from './types';
 
 const BASE_URL = '/api';
 
+/** Record of games between two specific bots */
+export interface HeadToHeadRecord {
+  /** Bot playing as white */
+  white_bot: string;
+  /** Bot playing as black */
+  black_bot: string;
+  /** Number of games won by white */
+  white_wins: number;
+  /** Number of games won by black */
+  black_wins: number;
+  /** Number of drawn games */
+  draws: number;
+  /** Total number of games played */
+  games: number;
+}
+
+/** Head-to-head matrix data for all bots */
+export interface HeadToHeadMatrix {
+  /** List of all bot names */
+  bots: string[];
+  /** Records for each bot pairing */
+  records: HeadToHeadRecord[];
+}
+
 /** Opening statistics from the database */
 export interface OpeningStats {
   /** ECO code (e.g., "B20") */
@@ -151,5 +175,13 @@ export const api = {
    */
   getOpenings(): Promise<OpeningStats[]> {
     return fetchJson('/openings');
+  },
+
+  /**
+   * Get head-to-head statistics between all bots
+   * @returns Matrix of head-to-head records
+   */
+  getHeadToHead(): Promise<HeadToHeadMatrix> {
+    return fetchJson('/stats/head-to-head');
   },
 };
