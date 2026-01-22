@@ -189,6 +189,18 @@
   .board-container {
     position: relative;
     display: inline-block;
+
+    /* Default CSS variables - can be overridden by parent */
+    --square-size: 60px;
+    --square-light: #f0d9b5;
+    --square-dark: #b58863;
+    --square-selected: #829769;
+    --square-last-move: rgba(155, 199, 0, 0.4);
+    --square-legal: rgba(0, 0, 0, 0.2);
+    --square-check: #e94560;
+    --bg-tertiary: #374151;
+    --text-muted: #9ca3af;
+    --radius: 4px;
   }
 
   .board {
