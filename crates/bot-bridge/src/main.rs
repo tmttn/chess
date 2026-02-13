@@ -79,7 +79,7 @@ async fn handle_connection(
                 serde_json::json!({ "type": "uci", "line": line }).to_string()
             };
 
-            if ws_sender.send(Message::Text(msg_str)).await.is_err() {
+            if ws_sender.send(Message::Text(msg_str.into())).await.is_err() {
                 break;
             }
         }
