@@ -116,7 +116,7 @@ async fn handle_socket(socket: WebSocket, broadcast: WsBroadcast) {
             let subs = subs_clone.read().await;
             if subs.contains(match_id) {
                 let json = serde_json::to_string(&msg).unwrap();
-                if sender.send(Message::Text(json)).await.is_err() {
+                if sender.send(Message::Text(json.into())).await.is_err() {
                     break;
                 }
             }
