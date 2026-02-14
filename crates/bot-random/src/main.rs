@@ -5,7 +5,7 @@
 
 use chess_engine::rules::RuleSet;
 use chess_engine::{Position, StandardChess};
-use rand::seq::SliceRandom;
+use rand::seq::IndexedRandom;
 use uci::{stdio_engine, GuiCommand};
 
 fn main() {
@@ -70,7 +70,7 @@ fn main() {
                     // No legal moves - game over
                     engine.send_bestmove("0000").unwrap();
                 } else {
-                    let mv = moves.choose(&mut rand::thread_rng()).unwrap();
+                    let mv = moves.choose(&mut rand::rng()).unwrap();
                     engine.send_bestmove(&mv.to_uci()).unwrap();
                 }
             }
