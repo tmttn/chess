@@ -11,7 +11,7 @@ bot-arena = { path = "../bot-arena" }
 chess-openings = { path = "../chess-openings" }
 futures-util = "0.3"
 tokio.workspace = true
-tower = { version = "0.4", features = ["util"] }
+tower = { version = "0.5", features = ["util"] }
 tower-http = { version = "0.5", features = ["cors", "fs"] }
 serde.workspace = true
 serde_json.workspace = true
