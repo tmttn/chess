@@ -435,7 +435,7 @@ mod tests {
         {
             let conn = db.lock().unwrap();
             conn.execute_batch(
-                "CREATE TABLE games (id TEXT PRIMARY KEY, match_id TEXT, game_number INTEGER, result TEXT);",
+                "CREATE TABLE games (id TEXT PRIMARY KEY, match_id TEXT, game_number INTEGER, result TEXT, started_at TEXT);",
             )
             .unwrap();
         }

@@ -196,6 +196,12 @@ mod tests {
         let html = template.render().unwrap();
         // Askama should escape HTML special characters
         assert!(!html.contains("<script>"));
-        assert!(html.contains("&lt;script&gt;") || html.contains("bot&lt;script&gt;"));
+        // Askama 0.12 uses numeric entities (&#60; for <, &#62; for >)
+        assert!(
+            html.contains("&lt;script&gt;")
+                || html.contains("bot&lt;script&gt;")
+                || html.contains("&#60;script&#62;")
+                || html.contains("bot&#60;script&#62;")
+        );
     }
 }
