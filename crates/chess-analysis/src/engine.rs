@@ -467,7 +467,7 @@ mod tests {
     #[test]
     fn test_max_iterations_constant_exists() {
         // Verify the constant exists and has a reasonable value
-        assert!(MAX_UCI_LINES > 0);
-        assert!(MAX_UCI_LINES >= 1000);
+        const { assert!(MAX_UCI_LINES > 0) };
+        const { assert!(MAX_UCI_LINES >= 1000) };
     }
 }
