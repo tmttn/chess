@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use rand::seq::SliceRandom;
+use rand::seq::IndexedRandom;
 use rand::Rng;
 use thiserror::Error;
 
@@ -79,7 +79,7 @@ impl MoveDatabase {
         }
 
         // Weighted random selection
-        let mut choice = rng.gen_range(0..total_weight);
+        let mut choice = rng.random_range(0..total_weight);
         for mv in moves {
             if choice < mv.weight {
                 return Some(mv);
@@ -249,7 +249,7 @@ impl OpeningDatabase {
                 break;
             }
 
-            let mut choice = rng.gen_range(0..total_weight);
+            let mut choice = rng.random_range(0..total_weight);
             let mut selected_idx = 0;
 
             for (i, (_, weight)) in available.iter().enumerate() {
