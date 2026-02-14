@@ -2,8 +2,8 @@
 
 use std::collections::HashMap;
 
-use rand::seq::IndexedRandom;
-use rand::Rng;
+use rand::seq::{IndexedMutRandom, IndexedRandom};
+use rand::{Rng, RngExt};
 use thiserror::Error;
 
 use crate::opening::{Opening, OpeningMove, OpeningSource};
@@ -442,7 +442,7 @@ mod tests {
         let mut db = MoveDatabase::new();
         db.add_position("", vec![OpeningMove::new("e2e4", 100)]);
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let selected = db.select_move("", &mut rng).unwrap();
         assert_eq!(selected.uci, "e2e4");
     }
@@ -694,7 +694,7 @@ mod tests {
         let openings = create_test_openings();
         let db = OpeningDatabase::with_openings(openings);
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
         // Get 3 random openings
         let random3 = db.random_subset(3, &mut rng);
@@ -713,7 +713,7 @@ mod tests {
     #[test]
     fn test_opening_database_random_subset_empty() {
         let db = OpeningDatabase::new();
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let result = db.random_subset(5, &mut rng);
         assert!(result.is_empty());
     }
@@ -723,7 +723,7 @@ mod tests {
         let openings = create_test_openings();
         let db = OpeningDatabase::with_openings(openings);
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
         // Get 3 weighted random openings
         let weighted3 = db.weighted_random(3, &mut rng);
@@ -738,7 +738,7 @@ mod tests {
     #[test]
     fn test_opening_database_weighted_random_empty() {
         let db = OpeningDatabase::new();
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
         let result = db.weighted_random(5, &mut rng);
         assert!(result.is_empty());
@@ -748,7 +748,7 @@ mod tests {
     fn test_opening_database_weighted_random_zero_count() {
         let openings = create_test_openings();
         let db = OpeningDatabase::with_openings(openings);
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
         let result = db.weighted_random(0, &mut rng);
         assert!(result.is_empty());
