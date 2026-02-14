@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use rand::seq::{IndexedMutRandom, IndexedRandom};
+use rand::seq::{IndexedRandom, SliceRandom};
 use rand::{Rng, RngExt};
 use thiserror::Error;
 
