@@ -15,7 +15,7 @@ rusqlite = { version = "0.38", features = ["bundled"] }
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1", features = ["v4"] }
 thiserror = "1"
-toml = "0.8"
+toml = "0.9"
 chess-analysis = { path = "../chess-analysis" }
 glob = "0.3"
 chess-openings = { path = "../chess-openings" }
