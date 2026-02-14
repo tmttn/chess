@@ -351,12 +351,12 @@ pub fn update_elo_ratings(
     // Update database
     conn.execute(
         "UPDATE bots SET elo_rating = ?1, games_played = games_played + ?2 WHERE name = ?3",
-        (new_white_rating, game_results.len(), &white_bot),
+        (new_white_rating, game_results.len() as i64, &white_bot),
     )?;
 
     conn.execute(
         "UPDATE bots SET elo_rating = ?1, games_played = games_played + ?2 WHERE name = ?3",
-        (new_black_rating, game_results.len(), &black_bot),
+        (new_black_rating, game_results.len() as i64, &black_bot),
     )?;
 
     Ok(())
