@@ -244,7 +244,7 @@ mod tests {
     #[test]
     fn test_clone_and_copy() {
         let eval = Evaluation::Centipawn(50);
-        let cloned = eval.clone();
+        let cloned = eval;
         let copied = eval;
         assert_eq!(eval, cloned);
         assert_eq!(eval, copied);
