@@ -360,7 +360,7 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chess_core::{File, MoveFlag, Rank, Square};
+    use chess_core::{File, Rank, Square};
 
     #[test]
     fn new_game() {
