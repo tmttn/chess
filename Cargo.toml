@@ -26,7 +26,7 @@ authors = ["Tom Metten"]
 chess-core = { path = "crates/chess-core" }
 chess-engine = { path = "crates/chess-engine" }
 uci = { path = "crates/uci" }
-thiserror = "1.0"
+thiserror = "2.0"
 proptest = "1.4"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
