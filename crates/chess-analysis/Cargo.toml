@@ -7,7 +7,7 @@ description = "Chess position analysis with Stockfish integration"
 [dependencies]
 chess-core = { path = "../chess-core" }
 chess-engine = { path = "../chess-engine" }
-thiserror = "1"
+thiserror = "2"
 serde = { version = "1", features = ["derive"] }
 
 [dev-dependencies]
