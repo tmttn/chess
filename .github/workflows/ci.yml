@@ -65,7 +65,7 @@ jobs:
             echo "::error::Coverage $COVERAGE% is below minimum threshold of 80%"
             exit 1
           fi
-      - uses: codecov/codecov-action@v4
+      - uses: codecov/codecov-action@v5
         with:
           files: lcov.info
           fail_ci_if_error: false
