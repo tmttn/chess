@@ -13,7 +13,7 @@
     "publish": "pnpm run build && changeset publish"
   },
   "devDependencies": {
-    "@changesets/cli": "^2.29.8",
+    "@changesets/cli": "^3.0.0",
     "typescript": "^6.0.0"
   }
 }
